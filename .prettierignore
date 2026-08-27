@@ -1,0 +1,7 @@
+.svelte-kit
+build
+node_modules
+pnpm-lock.yaml
+plans
+test-results
+playwright-report
