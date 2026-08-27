@@ -1,0 +1,6 @@
+.svelte-kit
+build
+node_modules
+plans
+test-results
+playwright-report

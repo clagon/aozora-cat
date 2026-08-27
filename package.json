@@ -1,0 +1,33 @@
+{
+	"name": "aozora-cat",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"lint": "prettier --check . && eslint .",
+		"format": "prettier --write .",
+		"test:unit": "vitest run",
+		"test:e2e": "node tests/e2e/matrix.mjs"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-cloudflare": "7.2.8",
+		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/vite-plugin-svelte": "7.2.0",
+		"@testing-library/svelte": "5.4.2",
+		"@types/node": "25.9.3",
+		"eslint": "9.39.4",
+		"eslint-config-prettier": "10.1.8",
+		"eslint-plugin-svelte": "3.22.0",
+		"playwright": "1.61.1",
+		"prettier": "3.9.5",
+		"prettier-plugin-svelte": "4.1.1",
+		"svelte": "5.56.6",
+		"svelte-check": "4.7.3",
+		"typescript": "5.9.3",
+		"vite": "8.1.5",
+		"vitest": "4.1.9"
+	}
+}
