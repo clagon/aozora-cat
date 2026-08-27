@@ -37,6 +37,27 @@
 	--content-max-width: 42rem;
 	--tap-target-min: 2.75rem;
 	--bottom-nav-height: 4rem;
+	/* viewport-fit=cover 時のノッチ・ホームインジケータとの重なりを避ける */
+	--safe-area-inset-top: env(safe-area-inset-top, 0px);
+	--safe-area-inset-right: env(safe-area-inset-right, 0px);
+	--safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-area-inset-left: env(safe-area-inset-left, 0px);
+	--content-padding-top: max(var(--content-gutter), var(--safe-area-inset-top));
+	--content-padding-right: max(
+		var(--content-gutter),
+		var(--safe-area-inset-right)
+	);
+	--content-padding-bottom: max(
+		var(--content-gutter),
+		var(--safe-area-inset-bottom)
+	);
+	--content-padding-left: max(
+		var(--content-gutter),
+		var(--safe-area-inset-left)
+	);
+	--bottom-nav-total-height: calc(
+		var(--bottom-nav-height) + var(--safe-area-inset-bottom)
+	);
 	--reader-edge-zone: 20%;
 	--reader-text-zone: 60%;
 

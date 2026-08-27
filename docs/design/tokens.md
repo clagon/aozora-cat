@@ -50,7 +50,8 @@
 
 - 基本の画面余白は `--content-gutter: 16px`。390pxと360pxの両方で同じ階層を保つ。
 - `--tap-target-min: 44px` をすべてのボタン、リンク、ナビ項目の最小幅・最小高にする。
-- 下部ナビゲーションは `--bottom-nav-height: 64px`。読書画面には置かない。
+- `viewport-fit=cover` を指定するため、`--safe-area-inset-top/right/bottom/left` はそれぞれ `env(safe-area-inset-top, 0px)`、`env(safe-area-inset-right, 0px)`、`env(safe-area-inset-bottom, 0px)`、`env(safe-area-inset-left, 0px)` から取得する。画面の外側余白は対応する `--content-padding-*`（基本余白と安全領域の大きい方）を使う。
+- 下部ナビゲーションの本体は `--bottom-nav-height: 64px`、占有高は `--bottom-nav-total-height`（本体 + `safe-area-inset-bottom`）とする。読書画面には置かない。
 - 読書画面の左右 `--reader-edge-zone: 20%` は次／前ページのタップ領域、中央 `--reader-text-zone: 60%` は本文領域とする。
 - 角丸・影は控えめにし、カードの区切りは余白と `--color-border` を優先する。
 
