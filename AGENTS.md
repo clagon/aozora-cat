@@ -9,14 +9,14 @@ and the quiet reading experience intact.
 
 ## Commands
 
-This environment uses npm because pnpm is not installed. Run:
+Use pnpm for dependency installation and project checks:
 
-- `npm install` to install dependencies
-- `npm run check` for Svelte and TypeScript checks
-- `npm run lint` for Prettier and ESLint checks
-- `npm run test:unit` for unit tests
-- `npm run test:e2e` for Chromium and WebKit browser tests
-- `npm run build` for the Cloudflare production build
+- `pnpm install` to install dependencies
+- `pnpm check` for Svelte and TypeScript checks
+- `pnpm lint` for Prettier and ESLint checks
+- `pnpm test:unit` for unit tests
+- `pnpm test:e2e` for Chromium and WebKit browser tests
+- `pnpm build` for the Cloudflare production build
 
 ## Conventions
 

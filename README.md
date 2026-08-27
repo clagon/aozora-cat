@@ -8,18 +8,18 @@ or account requirement.
 ## Development
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Quality gates:
 
 ```sh
-npm run check
-npm run lint
-npm run test:unit
-npm run test:e2e
-npm run build
+pnpm check
+pnpm lint
+pnpm test:unit
+pnpm test:e2e
+pnpm build
 ```
 
 The implementation is planned in [`plans/README.md`](plans/README.md). The

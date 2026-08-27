@@ -2,6 +2,7 @@
 	"name": "aozora-cat",
 	"private": true,
 	"type": "module",
+	"packageManager": "pnpm@11.24.0",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",

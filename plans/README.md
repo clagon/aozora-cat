@@ -38,20 +38,20 @@ Status values: `TODO`, `IN PROGRESS`, `DONE`, `BLOCKED: <reason>`, or
 
 ## Dependency notes
 
-Plan 001 establishes npm-based checks because pnpm was unavailable in the
-execution environment. Plan 003 must validate the reader approach before Plan
-007 production pagination. Plans 008 and 010 may proceed in parallel after Plan
-007 if they coordinate shared settings/navigation files.
+Plan 001 establishes pnpm-based checks for reproducible dependency installs.
+Plan 003 must validate the reader approach before Plan 007 production
+pagination. Plans 008 and 010 may proceed in parallel after Plan 007 if they
+coordinate shared settings/navigation files.
 
 ## Global verification contract
 
 | Command | Expected result |
 |---|---|
-| `npm run check` | Svelte and TypeScript checks exit 0 |
-| `npm run lint` | formatting and lint checks exit 0 |
-| `npm run test:unit` | all unit/component tests pass |
-| `npm run test:e2e` | Chromium and WebKit smoke checks pass |
-| `npm run build` | Cloudflare-targeted production build exits 0 |
+| `pnpm check` | Svelte and TypeScript checks exit 0 |
+| `pnpm lint` | formatting and lint checks exit 0 |
+| `pnpm test:unit` | all unit/component tests pass |
+| `pnpm test:e2e` | Chromium and WebKit smoke checks pass |
+| `pnpm build` | Cloudflare-targeted production build exits 0 |
 
 ## Decisions explicitly deferred beyond the beta
 
