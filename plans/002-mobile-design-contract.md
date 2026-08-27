@@ -8,6 +8,7 @@
 
 ## Status
 
+- **Status**: DONE
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: LOW
@@ -77,11 +78,11 @@ or documented manual table shows WCAG 2.2 AA for every foreground/background.
 
 ## Done criteria
 
-- [ ] Six primary mobile wireframes and required edge states exist.
-- [ ] Tokens cover three themes and four text sizes.
-- [ ] Reader contains no cat decoration or persistent navigation.
-- [ ] Search is a home mode, not a fourth navigation item.
-- [ ] Global checks pass with no production feature implementation.
+- [x] Six primary mobile wireframes and required edge states exist.
+- [x] Tokens cover three themes and four text sizes.
+- [x] Reader contains no cat decoration or persistent navigation.
+- [x] Search is a home mode, not a fourth navigation item.
+- [x] Global checks pass with no production feature implementation.
 
 ## STOP conditions
 

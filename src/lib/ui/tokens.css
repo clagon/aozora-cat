@@ -1,0 +1,94 @@
+:root {
+	/* 色: 紙の本を基準にした共通トークン */
+	--color-background: #f2ede2;
+	--color-surface: #faf7f0;
+	--color-text: #2b2a27;
+	--color-text-muted: #5e5b54;
+	--color-link: #16536c;
+	--color-border: #b8ad9f;
+	--color-focus: #16536c;
+	--color-selection: #d9e8ed;
+	--color-scheme: light;
+
+	/* 書体: 本文は明朝系、操作はサンセリフ */
+	--font-reading: ui-serif, 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+	--font-ui:
+		ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--text-reading-small: 1rem;
+	--text-reading-medium: 1.125rem;
+	--text-reading-large: 1.25rem;
+	--text-reading-xlarge: 1.5rem;
+	--text-reading-line-height: 2;
+	--text-ui-small: 0.875rem;
+	--text-ui-medium: 1rem;
+	--text-ui-large: 1.125rem;
+	--text-ui-line-height: 1.5;
+
+	/* 余白と寸法 */
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.25rem;
+	--space-6: 1.5rem;
+	--space-8: 2rem;
+	--space-10: 2.5rem;
+	--content-gutter: 1rem;
+	--content-max-width: 42rem;
+	--tap-target-min: 2.75rem;
+	--bottom-nav-height: 4rem;
+	--reader-edge-zone: 20%;
+	--reader-text-zone: 60%;
+
+	/* 動きとフォーカス */
+	--motion-duration-fast: 120ms;
+	--motion-duration-standard: 180ms;
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--focus-ring-width: 3px;
+	--focus-ring-offset: 2px;
+	--focus-ring-style: 3px solid var(--color-focus);
+	--reduced-motion-duration: 1ms;
+}
+
+[data-theme='white'] {
+	--color-background: #ffffff;
+	--color-surface: #f8f8f7;
+	--color-text: #2b2a27;
+	--color-text-muted: #5e5b54;
+	--color-link: #16536c;
+	--color-border: #b8b8b2;
+	--color-focus: #16536c;
+	--color-selection: #dcebf0;
+	--color-scheme: light;
+}
+
+[data-theme='paper'] {
+	--color-background: #f2ede2;
+	--color-surface: #faf7f0;
+	--color-text: #2b2a27;
+	--color-text-muted: #5e5b54;
+	--color-link: #16536c;
+	--color-border: #b8ad9f;
+	--color-focus: #16536c;
+	--color-selection: #d9e8ed;
+	--color-scheme: light;
+}
+
+[data-theme='night'] {
+	--color-background: #17191c;
+	--color-surface: #22262b;
+	--color-text: #eee9df;
+	--color-text-muted: #c8c2b7;
+	--color-link: #b9d7e3;
+	--color-border: #5a626b;
+	--color-focus: #b9d7e3;
+	--color-selection: #334b57;
+	--color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--motion-duration-fast: var(--reduced-motion-duration);
+		--motion-duration-standard: var(--reduced-motion-duration);
+	}
+}
