@@ -46,7 +46,7 @@
 	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
 	--focus-ring-width: 3px;
 	--focus-ring-offset: 2px;
-	--focus-ring-style: 3px solid var(--color-focus);
+	--focus-ring-style: solid;
 	--reduced-motion-duration: 1ms;
 }
 
