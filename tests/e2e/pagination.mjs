@@ -414,14 +414,13 @@ async function checkPositions(browser, url, name, failures) {
 				window.reader.state.page ===
 				Math.floor(1234 / window.reader.state.pageH)
 		);
-		const rounded = await page.evaluate((pageH) => {
+		const rounded = await page.evaluate(() => {
 			const st = window.reader.state;
 			const first = st.items.find(
-				(i) =>
-					i.kind !== 'rt' && !i.ws && i.page * pageH + i.across >= 1234 - 0.5
+				(i) => i.kind !== 'rt' && !i.ws && i.bottom > 1234 + 0.5
 			);
 			return { expected: { p: first.p, off: first.off }, actual: st.anchor };
-		}, exact.pageH);
+		});
 		assert(
 			JSON.stringify(rounded.actual) === JSON.stringify(rounded.expected),
 			`${name} 横書きのスクロール位置が丸められた: ${JSON.stringify(rounded)}`,
@@ -472,6 +471,38 @@ async function checkPositions(browser, url, name, failures) {
 			failures
 		);
 	});
+	// 背の高い挿絵の途中で横書きのスクロールが止まっても、挿絵を飛ばさない。
+	await withReader(
+		browser,
+		url,
+		{ ...base, fixture: 'edge-cases', mode: 'horizontal' },
+		async (page) => {
+			const top = await page.evaluate(() => {
+				const img = document.querySelector('[data-p="6"] img');
+				const fr = document.querySelector('.flow').getBoundingClientRect();
+				const r = img.getBoundingClientRect();
+				return { y: r.top - fr.top, h: r.height };
+			});
+			await page.evaluate(
+				(y) => {
+					document.querySelector('.stage').scrollTop = y;
+				},
+				top.y + top.h / 2
+			);
+			await page.waitForFunction(() => window.reader.state.anchor.p === 6);
+			await page.evaluate(() => window.reader.configure({ mode: 'vertical' }));
+			const shown = await page.evaluate(() => {
+				const st = window.reader.state;
+				const img = st.items.find((i) => i.kind === 'img' && i.p === 6);
+				return { page: st.page, imagePage: img.page };
+			});
+			assert(
+				shown.page === shown.imagePage,
+				`${name} 挿絵の途中から縦書きへ戻すと挿絵を飛ばす: ${JSON.stringify(shown)}`,
+				failures
+			);
+		}
+	);
 	// 挿絵だけのページと強制改ページ。
 	await withReader(
 		browser,

@@ -9,7 +9,7 @@ const isBody = (/** @type {{ kind: string, ws?: boolean }} */ i) =>
 	i.kind !== 'rt' && !i.ws;
 
 /** @typedef {{ p: number, off: number }} Anchor */
-/** @typedef {{ kind: 'c' | 'img' | 'rt', ws?: boolean, tcy?: boolean, p: number, off: number, page: number, endPage: number, across: number, along: number, outside: boolean, afterBreak: boolean }} Item */
+/** @typedef {{ kind: 'c' | 'img' | 'rt', bottom?: number, ws?: boolean, tcy?: boolean, p: number, off: number, page: number, endPage: number, across: number, along: number, outside: boolean, afterBreak: boolean }} Item */
 
 /** @param {HTMLElement} viewport */
 export function createReader(viewport) {
@@ -101,6 +101,8 @@ export function createReader(viewport) {
 				page,
 				endPage: page,
 				across: top - page * pageH,
+				// 背の高い項目（挿絵）が表示領域の上端にかかる場合を拾うための下端。
+				bottom: rect.bottom - fr.top,
 				along: rect.left - fr.left,
 				outside: rect.right > fr.left + pageW + EPS
 			};
@@ -243,9 +245,9 @@ export function createReader(viewport) {
 			return;
 		}
 		programmaticTop = -1;
-		// 丸めたページ先頭ではなく、実際の表示位置にある最初の項目を基準にする。
+		// 丸めたページ先頭ではなく、表示領域の上端にかかる（または直後にある）最初の項目を基準にする。
 		const first = state.items.find(
-			(i) => isBody(i) && i.page * state.pageH + i.across >= y - EPS
+			(i) => isBody(i) && (i.bottom ?? 0) > y + EPS
 		);
 		state.page = Math.min(
 			Math.max(0, Math.floor(y / state.pageH)),
