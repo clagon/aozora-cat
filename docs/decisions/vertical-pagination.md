@@ -95,7 +95,7 @@ interface PagedReader {
 ## 実機での確認手順
 
 1. `pnpm harness`（ポート指定は `pnpm harness 4200`）で常駐サーバーを起動する。表示された「同じネットワーク」の URL を、同じ Wi-Fi の iPhone / Android で開く。USB 接続の Android は `adb reverse tcp:4173 tcp:4173` で `http://localhost:4173/` も使える。
-2. クエリで条件を変える: `fixture`（`kokoro` `kumo-no-ito` `ginga-tetsudo` `rashomon-old` `kuroshikan` `aki-no-hitomi` `kaze-no-matasaburo` `edge-cases`）、`size`（16 / 18 / 20 / 24）、`theme`（`white` `paper` `night`）、`mode`（`vertical` `horizontal`）。既定は採用方式の `columns`（比較は `approach=offsets`）。
+2. 開いたら本文の中央をタップして操作バーを出す。縦書き／横書き、文字サイズ 16 / 18 / 20 / 24、テーマ（白・紙・夜間）を、再読み込みせずに切り替えられる。位置は切り替え前の箇所から復元されるので、往復して同じ箇所から読めるかを確認する。最初の条件は、URL のクエリで指定できる: `fixture`（`kokoro` `kumo-no-ito` `ginga-tetsudo` `rashomon-old` `kuroshikan` `aki-no-hitomi` `kaze-no-matasaburo` `edge-cases`）、`size`、`theme`、`mode`。既定は採用方式の `columns`（比較は `approach=offsets`）。
 3. 次を目視し、結果を下の表へ記入する。
 
 | 確認項目                                                               | iPhone Safari | Android Chrome |

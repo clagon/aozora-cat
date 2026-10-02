@@ -13,6 +13,11 @@ export function attachGestures(el, actions) {
 	let start = null;
 
 	el.addEventListener('pointerdown', (e) => {
+		// 操作バーのボタンは、ページ送りや中央タップとして数えない。
+		if (e.target instanceof Element && e.target.closest('button')) {
+			start = null;
+			return;
+		}
 		start = { x: e.clientX, y: e.clientY, t: e.timeStamp };
 	});
 	el.addEventListener('pointercancel', () => {

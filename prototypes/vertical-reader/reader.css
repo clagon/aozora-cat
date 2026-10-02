@@ -159,8 +159,38 @@ body {
 	position: absolute;
 	inset-inline: 0;
 	top: 0;
-	padding: 8px 16px;
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 16px;
+	padding: var(--content-padding-top) var(--content-padding-right) 8px
+		var(--content-padding-left);
 	background: var(--color-surface);
+	color: var(--color-text);
 	font-family: var(--font-ui);
 	font-size: 14px;
+}
+
+#chrome[hidden] {
+	display: none;
+}
+
+#chrome [role='group'] {
+	display: flex;
+	gap: 4px;
+}
+
+#chrome button {
+	min-width: var(--tap-target-min);
+	min-height: var(--tap-target-min);
+	border: 1px solid var(--color-border);
+	background: var(--color-background);
+	color: var(--color-text);
+	font: inherit;
+}
+
+#chrome button[aria-pressed='true'] {
+	border-color: var(--color-focus);
+	outline: 2px solid var(--color-focus);
 }

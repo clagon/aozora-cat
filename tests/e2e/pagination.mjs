@@ -180,6 +180,7 @@ export async function runPagination(browserType, name) {
 		await checkThemes(browser, server.url, name, failures);
 		await checkPositions(browser, server.url, name, failures);
 		await checkGestures(browser, server.url, name, failures);
+		await checkControls(browser, server.url, name, failures);
 		await checkMotion(browser, server.url, name, failures);
 		await checkDevice(browser, server.url, name, failures);
 		await checkSafeArea(browser, server.url, name, failures);
@@ -784,6 +785,60 @@ async function checkSafeArea(browser, url, name, failures) {
 			}
 		}
 	}
+}
+
+// 実機で再読み込みせずに条件を切り替えて、同じ位置で往復できること（操作バーのボタン）。
+async function checkControls(browser, url, name, failures) {
+	await withReader(browser, url, base, async (page) => {
+		await page.evaluate(() => window.reader.goTo(20));
+		const anchor = await page.evaluate(() => window.reader.state.anchor);
+		await page.mouse.click(195, 400);
+		const press = (label) =>
+			page.getByRole('button', { name: label, exact: true }).click();
+		const state = () =>
+			page.evaluate(() => ({
+				mode: window.reader.state.mode,
+				size: window.reader.state.size,
+				theme: document.documentElement.dataset.theme,
+				chromeOpen: !document.getElementById('chrome').hidden
+			}));
+		for (const [label, expected] of [
+			['横書き', { mode: 'horizontal' }],
+			['縦書き', { mode: 'vertical' }],
+			['24', { size: 24 }],
+			['16', { size: 16 }],
+			['夜間', { theme: 'night' }],
+			['18', { size: 18 }]
+		]) {
+			await press(label);
+			const now = await state();
+			for (const [key, value] of Object.entries(expected)) {
+				assert(
+					now[key] === value,
+					`${name} ボタン ${label}: ${key} が ${value} にならない (${now[key]})`,
+					failures
+				);
+			}
+			assert(
+				now.chromeOpen,
+				`${name} ボタン ${label}: 操作バーが閉じた`,
+				failures
+			);
+			assert(
+				await containsAnchor(page, anchor),
+				`${name} ボタン ${label}: 位置を含まない`,
+				failures
+			);
+		}
+		const pressed = await page
+			.getByRole('button', { name: '夜間', exact: true })
+			.getAttribute('aria-pressed');
+		assert(
+			pressed === 'true',
+			`${name} 選択中のテーマが押下状態にならない`,
+			failures
+		);
+	});
 }
 
 async function checkMotion(browser, url, name, failures) {

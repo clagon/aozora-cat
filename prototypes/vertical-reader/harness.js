@@ -33,8 +33,27 @@ Object.assign(reader.state, {
 	approach: params.get('approach') ?? 'columns'
 });
 
+const controls = chrome.querySelectorAll('button');
+
+/** 現在の条件をボタンの押下状態と状態表示へ反映する。 */
+function syncControls() {
+	const theme = document.documentElement.dataset.theme;
+	for (const button of controls) {
+		const { mode, size, theme: t } = button.dataset;
+		button.setAttribute(
+			'aria-pressed',
+			String(
+				mode === reader.state.mode ||
+					Number(size) === reader.state.size ||
+					t === theme
+			)
+		);
+	}
+}
+
 function updateStatus() {
 	status.textContent = `${reader.state.page + 1} / ${reader.state.pageCount}`;
+	syncControls();
 }
 
 const html = await (
@@ -42,6 +61,18 @@ const html = await (
 ).text();
 reader.load(html);
 updateStatus();
+
+// 再読み込みせずに設定を変える。位置は reader が保持した基準から復元する。
+chrome.addEventListener('click', (e) => {
+	const button =
+		e.target instanceof Element ? e.target.closest('button') : null;
+	if (!button) return;
+	const { mode, size, theme } = button.dataset;
+	if (mode) reader.configure({ mode });
+	if (size) reader.configure({ size: Number(size) });
+	if (theme) document.documentElement.dataset.theme = theme;
+	updateStatus();
+});
 
 attachGestures(viewport, {
 	enabled: () => reader.state.mode === 'vertical',
