@@ -830,6 +830,39 @@ async function checkControls(browser, url, name, failures) {
 				failures
 			);
 		}
+		// ボタンにフォーカスしたとき、Space はページ送りではなくボタンの操作になる。
+		await page.getByRole('button', { name: '横書き', exact: true }).focus();
+		await page.keyboard.press('Space');
+		assert(
+			(await state()).mode === 'horizontal',
+			`${name} ボタンで Space が効かない`,
+			failures
+		);
+		// 横書きでは、フォーカスが本文の外枠にあってもキーでスクロールでき、ページ表示も追従する。
+		await page.evaluate(() => document.getElementById('viewport').focus());
+		await page.keyboard.press('PageDown');
+		await page.waitForFunction(
+			() => document.querySelector('.stage').scrollTop > 100
+		);
+		await page.waitForFunction(() => {
+			const st = window.reader.state;
+			return document
+				.getElementById('status')
+				.textContent.startsWith(`${st.page + 1} /`);
+		});
+		const scrolled = await page.evaluate(
+			() => document.querySelector('.stage').scrollTop
+		);
+		await page.keyboard.press('ArrowDown');
+		await page.waitForFunction(
+			(y) => document.querySelector('.stage').scrollTop > y,
+			scrolled
+		);
+		await page.keyboard.press('PageUp');
+		await page.waitForFunction(
+			(y) => document.querySelector('.stage').scrollTop < y,
+			scrolled
+		);
 		const pressed = await page
 			.getByRole('button', { name: '夜間', exact: true })
 			.getAttribute('aria-pressed');

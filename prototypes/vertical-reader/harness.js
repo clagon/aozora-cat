@@ -78,10 +78,28 @@ attachGestures(viewport, {
 	enabled: () => reader.state.mode === 'vertical',
 	next: () => (reader.next(), updateStatus()),
 	prev: () => (reader.prev(), updateStatus()),
+	scroll: (direction, unit) => {
+		const { pageH, pitch } = reader.state;
+		const stage = viewport.querySelector('.stage');
+		stage?.scrollBy({
+			top: direction * (unit === 'page' ? pageH * 0.9 : pitch)
+		});
+	},
 	center: () => {
 		chrome.hidden = !chrome.hidden;
+		updateStatus();
 	}
 });
+// 横書きのネイティブスクロールでも、ページ表示を最新にする。
+let statusFrame = 0;
+viewport.addEventListener(
+	'scroll',
+	() => {
+		cancelAnimationFrame(statusFrame);
+		statusFrame = requestAnimationFrame(updateStatus);
+	},
+	true
+);
 addEventListener('resize', () => {
 	reader.relayout();
 	updateStatus();

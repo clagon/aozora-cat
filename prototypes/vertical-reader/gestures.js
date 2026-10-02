@@ -7,7 +7,7 @@ const TAP_MAX_MS = 500;
 
 /**
  * @param {HTMLElement} el
- * @param {{ next: () => void, prev: () => void, center: () => void, enabled: () => boolean }} actions
+ * @param {{ next: () => void, prev: () => void, center: () => void, enabled: () => boolean, scroll: (direction: 1 | -1, unit: 'line' | 'page') => void }} actions
  */
 export function attachGestures(el, actions) {
 	let start = null;
@@ -49,19 +49,29 @@ export function attachGestures(el, actions) {
 		} else actions.center();
 	});
 	el.addEventListener('keydown', (e) => {
-		if (!actions.enabled()) return;
-		if (
-			e.key === 'ArrowLeft' ||
+		// 操作バーのボタンは、Space や矢印を自分の操作に使う。
+		if (e.target instanceof Element && e.target.closest('button')) return;
+		const forward =
 			e.key === 'PageDown' ||
-			(e.key === ' ' && !e.shiftKey)
-		)
-			actions.next();
-		else if (
-			e.key === 'ArrowRight' ||
+			(e.key === ' ' && !e.shiftKey) ||
+			e.key === 'ArrowDown';
+		const backward =
 			e.key === 'PageUp' ||
-			(e.key === ' ' && e.shiftKey)
-		)
-			actions.prev();
+			(e.key === ' ' && e.shiftKey) ||
+			e.key === 'ArrowUp';
+		if (!actions.enabled()) {
+			// 横書きは縦スクロール。フォーカスは本文の外枠にあるので、中のステージへ送る。
+			if (forward || backward) {
+				actions.scroll(
+					forward ? 1 : -1,
+					e.key.startsWith('Arrow') ? 'line' : 'page'
+				);
+				e.preventDefault();
+			}
+			return;
+		}
+		if (e.key === 'ArrowLeft' || forward) actions.next();
+		else if (e.key === 'ArrowRight' || backward) actions.prev();
 		else return;
 		e.preventDefault();
 	});
