@@ -1,0 +1,141 @@
+[
+	{
+		"workId": "000092",
+		"title": "蜘蛛の糸",
+		"author": "芥川竜之介",
+		"orthography": "新字新仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000879/card92.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1927-07-24",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000879/files/92_14545.html",
+		"catalogUpdated": "2014-09-17",
+		"id": "kumo-no-ito",
+		"file": "kumo-no-ito.html",
+		"excerptLines": [
+			0,
+			400
+		],
+		"rationale": "短編の全文。外字画像・字下げ・段落の短い進行を確認する"
+	},
+	{
+		"workId": "000773",
+		"title": "こころ",
+		"author": "夏目漱石",
+		"orthography": "新字新仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000148/card773.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1916-12-09",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000148/files/773_14560.html",
+		"catalogUpdated": "2014-09-17",
+		"id": "kokoro",
+		"file": "kokoro.html",
+		"excerptLines": [
+			0,
+			260
+		],
+		"rationale": "長編の抜粋（約2万字）。長い散文・見出し・多数のルビで連続ページの欠落を確認する"
+	},
+	{
+		"workId": "043737",
+		"title": "銀河鉄道の夜",
+		"author": "宮沢賢治",
+		"orthography": "新字新仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000081/card43737.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1933-09-21",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000081/files/43737_19215.html",
+		"catalogUpdated": "2014-09-18",
+		"id": "ginga-tetsudo",
+		"file": "ginga-tetsudo.html",
+		"excerptLines": [
+			0,
+			140
+		],
+		"rationale": "ルビ密度が高い抜粋。旧仮名混じりの新字表記とルビの行末処理を確認する"
+	},
+	{
+		"workId": "000128",
+		"title": "羅生門",
+		"author": "芥川竜之介",
+		"orthography": "旧字旧仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000879/card128.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1927-07-24",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000879/files/128_15261.html",
+		"catalogUpdated": "2014-09-17",
+		"id": "rashomon-old",
+		"file": "rashomon-old.html",
+		"excerptLines": [
+			0,
+			400
+		],
+		"rationale": "旧字旧仮名の全体と外字・歴史的仮名遣いルビを確認する"
+	},
+	{
+		"workId": "001317",
+		"title": "黒死館殺人事件",
+		"author": "小栗虫太郎",
+		"orthography": "新字新仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000125/card1317.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1946-02-10",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000125/files/1317_23268.html",
+		"catalogUpdated": "2014-09-18",
+		"id": "kuroshikan",
+		"file": "kuroshikan.html",
+		"excerptLines": [
+			60,
+			200
+		],
+		"rationale": "挿絵・外字・傍点・長い行を含む抜粋。画像を含むページと外字の境界を確認する"
+	},
+	{
+		"workId": "000011",
+		"title": "秋の瞳",
+		"author": "八木重吉",
+		"orthography": "新字旧仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000013/card11.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1927-10-26",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000013/files/11_20062.html",
+		"catalogUpdated": "2014-09-17",
+		"id": "aki-no-hitomi",
+		"file": "aki-no-hitomi.html",
+		"excerptLines": [
+			0,
+			120
+		],
+		"rationale": "詩の抜粋。極端に短い行、字下げ、改ページ注記、空行の扱いを確認する"
+	},
+	{
+		"workId": "000462",
+		"title": "風の又三郎",
+		"author": "宮沢賢治",
+		"orthography": "新字新仮名",
+		"cardUrl": "https://www.aozora.gr.jp/cards/000081/card462.html",
+		"workCopyrightFlag": "なし",
+		"personCopyrightFlag": "なし",
+		"died": "1933-09-21",
+		"xhtmlUrl": "https://www.aozora.gr.jp/cards/000081/files/462_15405.html",
+		"catalogUpdated": "2014-09-17",
+		"id": "kaze-no-matasaburo",
+		"file": "kaze-no-matasaburo.html",
+		"excerptLines": [
+			100,
+			180
+		],
+		"rationale": "行内の挿絵画像（数式）と傍点を含む抜粋。行高が乱れる箇所を確認する"
+	},
+	{
+		"id": "edge-cases",
+		"file": "edge-cases.html",
+		"synthetic": true,
+		"rationale": "長い連続文字、空行、挿絵だけのページ、改ページ注記、長いルビ、縦中横を合成した境界データ（実在作品ではない）"
+	}
+]

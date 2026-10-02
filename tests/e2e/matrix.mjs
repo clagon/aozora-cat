@@ -1,5 +1,15 @@
 import { chromium, webkit } from 'playwright';
 import { spawn } from 'node:child_process';
+import { runPagination } from './pagination.mjs';
+
+// `pnpm test:e2e -- --project=webkit` のように、実行するブラウザを絞れる。
+const only = process.argv
+	.filter((arg) => arg.startsWith('--project='))
+	.map((arg) => arg.slice('--project='.length));
+const projects = [
+	['chromium', chromium],
+	['webkit', webkit]
+].filter(([name]) => only.length === 0 || only.includes(name));
 
 const server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1'], {
 	stdio: 'ignore',
@@ -44,8 +54,10 @@ async function check(browserType, name) {
 
 try {
 	await waitForServer();
-	await check(chromium, 'chromium');
-	await check(webkit, 'webkit');
+	for (const [name, type] of projects) {
+		await check(type, name);
+		await runPagination(type, name);
+	}
 } finally {
 	server.kill();
 }
