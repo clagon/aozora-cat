@@ -68,22 +68,38 @@ for (const src of sources) {
 	const start =
 		html.indexOf('<div class="main_text">') + '<div class="main_text">'.length;
 	const end = html.indexOf('<div class="bibliographical_information">');
+	// 字下げ・地付きは複数行を囲む div のクラスで表されるため、行をまたいで状態を持つ。
+	let wrapper = null;
 	const lines = html
 		.slice(start, end)
 		.split(/<br \/>\r?\n|\r?\n/)
-		.map(convertLine);
+		.map((raw) => {
+			const open = raw.match(/<div class="(jisage|chitsuki)_(\d+)"/);
+			if (open) wrapper = { kind: open[1], n: Number(open[2]) };
+			const line = { ...convertLine(raw), wrapper };
+			if (raw.includes('</div>')) wrapper = null;
+			return line;
+		});
 	const picked = lines
 		.filter((l) => l.tag !== 'skip')
 		.slice(src.from, src.from + src.count);
 	let n = 0;
+	// 字下げは --indent（字数）、地付きは data-align="end" と --inset（字数）で残す。
+	const layout = (l) =>
+		!l.wrapper
+			? ''
+			: l.wrapper.kind === 'jisage'
+				? ` style="--indent:${l.wrapper.n}"`
+				: ` data-align="end" style="--inset:${l.wrapper.n}"`;
 	const body = picked
 		.map((l) => {
 			if (l.tag === 'break') return l.html;
 			n += 1;
 			if (l.tag === 'blank') return `<p data-p="${n}" data-blank></p>`;
-			if (l.tag === 'h') return l.html.replace('<h2>', `<h2 data-p="${n}">`);
+			if (l.tag === 'h')
+				return l.html.replace('<h2>', `<h2 data-p="${n}"${layout(l)}>`);
 			if (l.tag === 'img') return `<p data-p="${n}" data-image>${l.html}</p>`;
-			return `<p data-p="${n}">${l.html}</p>`;
+			return `<p data-p="${n}"${layout(l)}>${l.html}</p>`;
 		})
 		.join('\n');
 	await writeFile(join(outDir, `${src.id}.html`), `${body}\n`);

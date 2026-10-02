@@ -11,6 +11,10 @@ body {
 	position: fixed;
 	inset: 0;
 	touch-action: manipulation;
+	box-sizing: border-box;
+	/* viewport-fit=cover でもノッチやホームインジケータに本文が重ならないよう、安全領域つきの余白を使う。 */
+	padding: var(--content-padding-top) var(--content-padding-right)
+		var(--content-padding-bottom) var(--content-padding-left);
 	user-select: none;
 	-webkit-user-select: none;
 	-webkit-touch-callout: none;
@@ -100,7 +104,7 @@ body {
 	vertical-align: baseline;
 }
 
-.flow p > img.illustration {
+.flow p:not([data-image]) > img.illustration {
 	width: 1.5em;
 	height: auto;
 	vertical-align: baseline;
@@ -108,6 +112,7 @@ body {
 
 .flow p[data-image] > img.illustration {
 	display: block;
+	height: auto;
 	max-width: var(--page-w);
 	max-height: var(--page-h);
 }
@@ -119,6 +124,16 @@ body {
 .flow ruby,
 .flow img {
 	break-inside: avoid;
+}
+
+/* 字下げ（--indent）は行頭側、地付き（--inset）は行末側へ寄せる。縦書きでは行頭が上。 */
+.flow [style*='--indent'] {
+	padding-inline-start: calc(var(--indent) * 1em);
+}
+
+.flow [data-align='end'] {
+	text-align: end;
+	padding-inline-end: calc(var(--inset) * 1em);
 }
 
 .flow hr[data-page-break] {

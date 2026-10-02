@@ -2,7 +2,6 @@
 // approach: 'offsets'（行数の整数倍のページ幅 + 実測オフセット）/ 'columns'（CSS multicol の列＝ページ）。
 // 位置の識別は「段落番号 p + 段落内の文字位置 off」。ルビ（rt/rp）は文字数に含めない。
 const LINE_HEIGHT = 2;
-const GUTTER = 16;
 const EPS = 0.5;
 
 /** 位置判定に使える項目（ルビと不可視の空白を除く）。 */
@@ -38,16 +37,29 @@ export function createReader(viewport) {
 		measureMs: 0
 	};
 
+	/** トークンの安全領域つき余白（`--content-padding-*`）を、表示領域の内側の余白として読む。 */
+	function insets() {
+		const cs = getComputedStyle(viewport);
+		return {
+			top: parseFloat(cs.paddingTop),
+			right: parseFloat(cs.paddingRight),
+			bottom: parseFloat(cs.paddingBottom),
+			left: parseFloat(cs.paddingLeft)
+		};
+	}
+
 	function dimensions() {
-		const availW = viewport.clientWidth - GUTTER * 2;
-		const availH = viewport.clientHeight - GUTTER * 2;
+		const inset = insets();
+		const availW = viewport.clientWidth - inset.left - inset.right;
+		const availH = viewport.clientHeight - inset.top - inset.bottom;
 		const pitch = state.size * LINE_HEIGHT;
 		if (state.mode === 'horizontal') {
-			return { pitch, pageW: availW, pageH: availH };
+			return { pitch, pageW: availW, pageH: availH, inset };
 		}
 		// 1ページに入る行数と1行の字数を整数にして、行や文字が境界をまたがないようにする。
 		return {
 			pitch,
+			inset,
 			pageW: Math.max(1, Math.floor(availW / pitch)) * pitch,
 			pageH: Math.floor(availH / state.size) * state.size
 		};
@@ -197,10 +209,14 @@ export function createReader(viewport) {
 		state.measureMs = performance.now() - t0;
 	}
 
-	function show(page, remember = true) {
+	let programmaticTop = -1;
+
+	/** @param {number} [top] 横書きで正確なスクロール位置（px）に合わせたいときだけ渡す。 */
+	function show(page, remember = true, top) {
 		state.page = Math.min(Math.max(0, page), state.pageCount - 1);
 		if (state.mode === 'horizontal') {
-			stage.scrollTop = state.page * state.pageH;
+			stage.scrollTop = top ?? state.page * state.pageH;
+			programmaticTop = stage.scrollTop;
 			flow.style.transform = '';
 		} else if (state.approach === 'columns') {
 			stage.scrollTop = 0; // 横書きで残ったスクロール量と二重にずれないようにする
@@ -218,14 +234,19 @@ export function createReader(viewport) {
 	// show() 自身の scrollTop 更新は同じページ番号になるため、細かい位置の基準は上書きしない。
 	stage.addEventListener('scroll', () => {
 		if (state.mode !== 'horizontal') return;
-		const page = Math.min(
-			Math.max(0, Math.round(stage.scrollTop / state.pageH)),
+		const y = stage.scrollTop;
+		// show() 自身のスクロールは、細かい位置の基準を上書きしない。
+		if (Math.abs(y - programmaticTop) < 1) return;
+		// 丸めたページ先頭ではなく、実際の表示位置にある最初の項目を基準にする。
+		const first = state.items.find(
+			(i) => isBody(i) && i.page * state.pageH + i.across >= y - EPS
+		);
+		state.page = Math.min(
+			Math.max(0, Math.floor(y / state.pageH)),
 			state.pageCount - 1
 		);
-		if (page === state.page) return;
-		state.page = page;
-		viewport.dataset.page = String(page);
-		state.anchor = anchor();
+		viewport.dataset.page = String(state.page);
+		if (first) state.anchor = { p: first.p, off: first.off };
 	});
 
 	function layout() {
@@ -234,7 +255,7 @@ export function createReader(viewport) {
 		for (const hr of flow.querySelectorAll('hr')) hr.style.blockSize = '';
 		const d = dimensions();
 		Object.assign(state, d);
-		stage.style.cssText = `left:${(viewport.clientWidth - d.pageW) / 2}px;top:${(viewport.clientHeight - d.pageH) / 2}px;width:${d.pageW}px;height:${d.pageH}px;overflow:${state.mode === 'horizontal' ? 'hidden auto' : 'clip'}`;
+		stage.style.cssText = `left:${d.inset.left + (viewport.clientWidth - d.inset.left - d.inset.right - d.pageW) / 2}px;top:${d.inset.top + (viewport.clientHeight - d.inset.top - d.inset.bottom - d.pageH) / 2}px;width:${d.pageW}px;height:${d.pageH}px;overflow:${state.mode === 'horizontal' ? 'hidden auto' : 'clip'}`;
 		viewport.style.setProperty('--page-w', `${d.pageW}px`);
 		viewport.style.setProperty('--page-h', `${d.pageH}px`);
 		flow.style.fontSize = `${state.size}px`;
@@ -257,7 +278,11 @@ export function createReader(viewport) {
 		const body = state.items.filter(isBody);
 		const same = body.filter((i) => i.p === a.p && i.off <= a.off).at(-1);
 		const target = same ?? body.find((i) => i.p >= a.p);
-		show(target ? target.page : 0, false);
+		show(
+			target ? target.page : 0,
+			false,
+			target ? target.page * state.pageH + target.across : 0
+		);
 		state.anchor = a;
 	}
 

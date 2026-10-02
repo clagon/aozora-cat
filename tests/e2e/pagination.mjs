@@ -24,7 +24,8 @@ export const APPROACHES = ['offsets', 'columns'];
 
 /** 配置された全項目から、欠落・重複・境界またぎ・順序違反を数える。 */
 function inspect() {
-	const { items, pageCount, layoutMs, measureMs, pitch } = window.reader.state;
+	const { items, pageCount, layoutMs, measureMs, pitch, pageH } =
+		window.reader.state;
 	const body = items.filter((i) => i.kind !== 'rt' && !i.ws);
 	const flow = document.querySelector('.flow');
 	let expected = 0;
@@ -67,7 +68,8 @@ function inspect() {
 	body.forEach((item, k) => {
 		if (
 			item.afterBreak &&
-			(item.along > 1 || (body[k - 1] && item.page <= body[k - 1].page))
+			// 字下げで行頭が下がるため、位置は「ページの上半分」までを許す。
+			(item.along > pageH / 2 || (body[k - 1] && item.page <= body[k - 1].page))
 		)
 			breakMisaligned += 1;
 	});
@@ -101,6 +103,7 @@ export async function openReader(
 		viewport,
 		theme = 'paper',
 		font = TEST_FONT,
+		safe = null,
 		reducedMotion = 'no-preference',
 		device = null
 	}
@@ -114,7 +117,7 @@ export async function openReader(
 	const errors = [];
 	page.on('pageerror', (e) => errors.push(String(e)));
 	await page.goto(
-		`${base}/?fixture=${fixture}&approach=${approach}&size=${size}&theme=${theme}&font=${encodeURIComponent(font)}`
+		`${base}/?fixture=${fixture}&approach=${approach}&size=${size}&theme=${theme}&font=${encodeURIComponent(font)}${safe ? `&safe=${safe}` : ''}`
 	);
 	await page.waitForSelector('#viewport[data-ready="true"]');
 	return { page, context, errors };
@@ -177,6 +180,7 @@ export async function runPagination(browserType, name) {
 		await checkGestures(browser, server.url, name, failures);
 		await checkMotion(browser, server.url, name, failures);
 		await checkDevice(browser, server.url, name, failures);
+		await checkSafeArea(browser, server.url, name, failures);
 	} finally {
 		await browser.close();
 		server.close();
@@ -356,10 +360,42 @@ async function checkPositions(browser, url, name, failures) {
 		// 利用者がホイールで直接スクロールした位置も、縦書きへ戻したときの新しい基準になる。
 		await page.mouse.move(195, 400);
 		await page.mouse.wheel(0, 2400);
+		// ホイールは滑らかにスクロールするため、止まるまで待ってから次の操作をする。
 		await page.waitForFunction(
-			() => document.querySelector('.stage').scrollTop > 1500
+			() => {
+				const y = document.querySelector('.stage').scrollTop;
+				const settled = window.lastStageY === y && y > 1500;
+				window.lastStageY = y;
+				return settled;
+			},
+			null,
+			{ polling: 100 }
 		);
 		await page.waitForFunction(() => window.reader.state.page > 1);
+		// ページ境界の途中で止まったスクロールも、丸めずにその位置の最初の項目を基準にする。
+		const exact = await page.evaluate(() => {
+			const st = window.reader.state;
+			document.querySelector('.stage').scrollTop = 1234;
+			return { pageH: st.pageH };
+		});
+		await page.waitForFunction(
+			() =>
+				window.reader.state.page ===
+				Math.floor(1234 / window.reader.state.pageH)
+		);
+		const rounded = await page.evaluate((pageH) => {
+			const st = window.reader.state;
+			const first = st.items.find(
+				(i) =>
+					i.kind !== 'rt' && !i.ws && i.page * pageH + i.across >= 1234 - 0.5
+			);
+			return { expected: { p: first.p, off: first.off }, actual: st.anchor };
+		}, exact.pageH);
+		assert(
+			JSON.stringify(rounded.actual) === JSON.stringify(rounded.expected),
+			`${name} 横書きのスクロール位置が丸められた: ${JSON.stringify(rounded)}`,
+			failures
+		);
 		// 横書きで進めた位置は、縦書きへ戻したときの新しい基準になる。
 		const d = await page.evaluate(() => window.reader.state.anchor);
 		await page.evaluate(() => window.reader.configure({ mode: 'vertical' }));
@@ -402,11 +438,22 @@ async function checkPositions(browser, url, name, failures) {
 				);
 				const image = body.find((i) => i.kind === 'img' && i.p === 6);
 				const onPage = body.filter((i) => i.page === image.page);
+				const box = document
+					.querySelector('[data-p="6"] img')
+					.getBoundingClientRect();
 				return {
 					alone: onPage.length,
-					afterBreaks: body.filter((i) => i.afterBreak).length
+					afterBreaks: body.filter((i) => i.afterBreak).length,
+					imageWidth: box.width,
+					imageHeight: box.height
 				};
 			});
+			// 挿絵だけのページが小さなアイコンではなく、実際に大きな画像で検証されていること。
+			assert(
+				r.imageHeight > 300,
+				`${name} 挿絵だけのページの画像が小さすぎる: ${r.imageWidth}x${r.imageHeight}`,
+				failures
+			);
 			assert(
 				r.alone === 1,
 				`${name} 挿絵だけのページに他の項目がある: ${r.alone}`,
@@ -552,6 +599,54 @@ async function checkDevice(browser, url, name, failures) {
 			failures
 		);
 	});
+}
+
+// ノッチ・ホームインジケータ相当の安全領域を避けて、本文のページが組まれること。
+async function checkSafeArea(browser, url, name, failures) {
+	const cases = [
+		{ safe: '47,0,34,0', viewport: VIEWPORTS[0] },
+		{ safe: '0,47,21,47', viewport: { width: 844, height: 390 } }
+	];
+	for (const { safe, viewport } of cases) {
+		const [top, right, bottom, left] = safe.split(',').map(Number);
+		for (const fixture of ['kokoro', 'edge-cases']) {
+			const { page, context } = await openReader(browser, url, {
+				...base,
+				fixture,
+				viewport,
+				safe
+			});
+			try {
+				await page.evaluate(() => document.fonts.ready);
+				const r = await page.evaluate(inspect);
+				const box = await page.evaluate(() => {
+					const s = document.querySelector('.stage').getBoundingClientRect();
+					return {
+						top: s.top,
+						right: innerWidth - s.right,
+						bottom: innerHeight - s.bottom,
+						left: s.left
+					};
+				});
+				const label = `${name} 安全領域 ${safe} ${fixture}`;
+				assert(
+					!failing({ ...r, errors: [] }),
+					`${label}: ${JSON.stringify(r)}`,
+					failures
+				);
+				assert(
+					box.top >= top &&
+						box.right >= right &&
+						box.bottom >= bottom &&
+						box.left >= left,
+					`${label}: 本文が安全領域に入り込む ${JSON.stringify(box)}`,
+					failures
+				);
+			} finally {
+				await context.close();
+			}
+		}
+	}
 }
 
 async function checkMotion(browser, url, name, failures) {

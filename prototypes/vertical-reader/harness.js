@@ -10,6 +10,19 @@ if (!(viewport && chrome && status))
 
 document.documentElement.dataset.theme = params.get('theme') ?? 'paper';
 // 検証環境に明朝がないため、テストでは固定フォントを指定できるようにする。
+// 実機の安全領域（上,右,下,左 px）をブラウザ上で再現する。例: ?safe=47,0,34,0
+const safe = params.get('safe');
+if (safe) {
+	for (const [side, px] of ['top', 'right', 'bottom', 'left'].map((side, i) => [
+		side,
+		safe.split(',')[i]
+	])) {
+		document.documentElement.style.setProperty(
+			`--safe-area-inset-${side}`,
+			`${px}px`
+		);
+	}
+}
 const font = params.get('font');
 if (font) document.documentElement.style.setProperty('--font-reading', font);
 const reader = createReader(viewport);
