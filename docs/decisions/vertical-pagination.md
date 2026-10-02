@@ -89,6 +89,7 @@ interface PagedReader {
 | 字下げ・地付きは複数行を囲む `div` のクラスにある                                                                                      | 抽出時に `--indent` / `--inset` として段落へ残し、折り返した行頭も同じ位置にそろえる                                                                                 |
 | 横書きのネイティブスクロールの位置は、ページ境界へ丸めない                                                                             | `scroll` で、その位置の最初の項目を基準にする                                                                                                                        |
 | `touch-action: manipulation` だと、モバイルのブラウザが横方向のドラッグを奪って `pointercancel` になり、スワイプがページ送りに届かない | `touch-action: pan-y` にする。Chromium は CDP のタッチ入力でスワイプを検証（WebKit は CDP がないため、タップと `touch-action` の値のみ。スワイプの実機確認は未実施） |
+| 横書きでも multicol が効いたままだと、強制改ページで以降の本文が横の列へ送られて見えなくなる                                           | multicol のスタイルを縦書き（`data-mode='vertical'`）に限定し、横書きは通常のブロックの流れにする                                                                    |
 | ジェスチャーの `pointerup` は横書きで無効にしないとスクロールを奪う                                                                    | `enabled()` で縦書きのみに限定                                                                                                                                       |
 
 ## 未達・要確認

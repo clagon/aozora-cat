@@ -45,7 +45,7 @@ body {
 	height: var(--page-h);
 }
 
-.flow[data-approach='columns'] {
+.flow[data-mode='vertical'][data-approach='columns'] {
 	width: var(--page-w);
 	column-width: var(--page-h);
 	column-gap: 0;

@@ -104,6 +104,7 @@ export async function openReader(
 		theme = 'paper',
 		font = TEST_FONT,
 		safe = null,
+		mode = 'vertical',
 		reducedMotion = 'no-preference',
 		device = null
 	}
@@ -117,7 +118,7 @@ export async function openReader(
 	const errors = [];
 	page.on('pageerror', (e) => errors.push(String(e)));
 	await page.goto(
-		`${base}/?fixture=${fixture}&approach=${approach}&size=${size}&theme=${theme}&font=${encodeURIComponent(font)}${safe ? `&safe=${safe}` : ''}`
+		`${base}/?fixture=${fixture}&approach=${approach}&size=${size}&theme=${theme}&font=${encodeURIComponent(font)}${safe ? `&safe=${safe}` : ''}&mode=${mode}`
 	);
 	await page.waitForSelector('#viewport[data-ready="true"]');
 	return { page, context, errors };
@@ -175,6 +176,7 @@ export async function runPagination(browserType, name) {
 				}
 			}
 		}
+		await checkHorizontal(browser, server.url, name, failures);
 		await checkThemes(browser, server.url, name, failures);
 		await checkPositions(browser, server.url, name, failures);
 		await checkGestures(browser, server.url, name, failures);
@@ -219,6 +221,35 @@ const containsAnchor = (page, a) =>
 		);
 		return hit ? hit.page === st.page : false;
 	}, a);
+
+// 横書きは通常のブロックの流れで縦スクロールする。強制改ページがあっても本文が列に隠れないこと。
+async function checkHorizontal(browser, url, name, failures) {
+	for (const fixture of FIXTURES) {
+		for (const size of [16, 24]) {
+			const { page, context } = await openReader(browser, url, {
+				...base,
+				fixture,
+				size,
+				mode: 'horizontal'
+			});
+			try {
+				await page.evaluate(() => document.fonts.ready);
+				const r = await page.evaluate(inspect);
+				const overflow = await page.evaluate(() => {
+					const s = document.querySelector('.stage');
+					return s.scrollWidth - s.clientWidth;
+				});
+				assert(
+					r.skipped === 0 && r.outside === 0 && overflow <= 1,
+					`${name} 横書き ${fixture} ${size}px: ${JSON.stringify({ ...r, overflow })}`,
+					failures
+				);
+			} finally {
+				await context.close();
+			}
+		}
+	}
+}
 
 async function checkThemes(browser, url, name, failures) {
 	const colors = new Set();
@@ -578,6 +609,12 @@ async function checkGestures(browser, url, name, failures) {
 		assert(
 			(await page.evaluate(() => window.reader.state.page)) === before,
 			`${name} 横書きで端タップがページ送りになった`,
+			failures
+		);
+		await page.mouse.click(195, 400);
+		assert(
+			await page.evaluate(() => !document.getElementById('chrome').hidden),
+			`${name} 横書きで中央タップが操作バーを開かない`,
 			failures
 		);
 	});

@@ -19,14 +19,17 @@ export function attachGestures(el, actions) {
 		start = null;
 	});
 	el.addEventListener('pointerup', (e) => {
-		if (!start || !actions.enabled()) return;
+		if (!start) return;
 		const dx = e.clientX - start.x;
 		const dy = e.clientY - start.y;
 		const moved = Math.hypot(dx, dy);
 		const elapsed = e.timeStamp - start.t;
 		const origin = start;
 		start = null;
+		// ページ送りが無効（横書き）でも、中央タップによる操作バーの開閉は使える。
+		const paging = actions.enabled();
 		if (Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.5) {
+			if (!paging) return;
 			if (dx < 0) actions.next();
 			else actions.prev();
 			return;
@@ -34,9 +37,11 @@ export function attachGestures(el, actions) {
 		// 縦方向が優位な動きはスクロール意図として何もしない。
 		if (moved > TAP_MAX_MOVE || elapsed > TAP_MAX_MS) return;
 		const ratio = origin.x / el.clientWidth;
-		if (ratio < EDGE) actions.next();
-		else if (ratio > 1 - EDGE) actions.prev();
-		else actions.center();
+		if (ratio < EDGE) {
+			if (paging) actions.next();
+		} else if (ratio > 1 - EDGE) {
+			if (paging) actions.prev();
+		} else actions.center();
 	});
 	el.addEventListener('keydown', (e) => {
 		if (!actions.enabled()) return;
