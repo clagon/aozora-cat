@@ -353,12 +353,40 @@ async function checkPositions(browser, url, name, failures) {
 			`${name} 横書き: スクロールしない`,
 			failures
 		);
+		// 利用者がホイールで直接スクロールした位置も、縦書きへ戻したときの新しい基準になる。
+		await page.mouse.move(195, 400);
+		await page.mouse.wheel(0, 2400);
+		await page.waitForFunction(
+			() => document.querySelector('.stage').scrollTop > 1500
+		);
+		await page.waitForFunction(() => window.reader.state.page > 1);
 		// 横書きで進めた位置は、縦書きへ戻したときの新しい基準になる。
 		const d = await page.evaluate(() => window.reader.state.anchor);
 		await page.evaluate(() => window.reader.configure({ mode: 'vertical' }));
 		assert(
 			await containsAnchor(page, d),
 			`${name} 縦書きへ戻す: 位置を含まない`,
+			failures
+		);
+		// 見た目でも、横書きのスクロール量が残らず、ページ分だけ送られていること。
+		await page.waitForFunction(
+			() => document.querySelector('.flow').getAnimations().length === 0
+		);
+		const shown = await page.evaluate(() => {
+			const st = window.reader.state;
+			const stage = document.querySelector('.stage');
+			const flowTop = document
+				.querySelector('.flow')
+				.getBoundingClientRect().top;
+			return {
+				stageScroll: stage.scrollTop,
+				offset: flowTop - stage.getBoundingClientRect().top,
+				expected: -st.page * st.pageH
+			};
+		});
+		assert(
+			shown.stageScroll === 0 && Math.abs(shown.offset - shown.expected) <= 1,
+			`${name} 縦書きへ戻す: 表示がずれている ${JSON.stringify(shown)}`,
 			failures
 		);
 	});

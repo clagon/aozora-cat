@@ -203,13 +203,30 @@ export function createReader(viewport) {
 			stage.scrollTop = state.page * state.pageH;
 			flow.style.transform = '';
 		} else if (state.approach === 'columns') {
+			stage.scrollTop = 0; // 横書きで残ったスクロール量と二重にずれないようにする
 			flow.style.transform = `translateY(${-state.page * state.pageH}px)`;
 		} else {
+			stage.scrollTop = 0;
 			flow.style.transform = `translateX(${state.page * state.pageW}px)`;
 		}
 		viewport.dataset.page = String(state.page);
 		if (remember) state.anchor = anchor();
 	}
+
+	// 縦書きのステージは clip にして、横書き側の慣性スクロールが残っても動かないようにする。
+	// 横書きはネイティブスクロールなので、利用者のスクロールで変わったページと位置を取り込む。
+	// show() 自身の scrollTop 更新は同じページ番号になるため、細かい位置の基準は上書きしない。
+	stage.addEventListener('scroll', () => {
+		if (state.mode !== 'horizontal') return;
+		const page = Math.min(
+			Math.max(0, Math.round(stage.scrollTop / state.pageH)),
+			state.pageCount - 1
+		);
+		if (page === state.page) return;
+		state.page = page;
+		viewport.dataset.page = String(page);
+		state.anchor = anchor();
+	});
 
 	function layout() {
 		const t0 = performance.now();
@@ -217,7 +234,7 @@ export function createReader(viewport) {
 		for (const hr of flow.querySelectorAll('hr')) hr.style.blockSize = '';
 		const d = dimensions();
 		Object.assign(state, d);
-		stage.style.cssText = `left:${(viewport.clientWidth - d.pageW) / 2}px;top:${(viewport.clientHeight - d.pageH) / 2}px;width:${d.pageW}px;height:${d.pageH}px;overflow:${state.mode === 'horizontal' ? 'hidden auto' : 'hidden'}`;
+		stage.style.cssText = `left:${(viewport.clientWidth - d.pageW) / 2}px;top:${(viewport.clientHeight - d.pageH) / 2}px;width:${d.pageW}px;height:${d.pageH}px;overflow:${state.mode === 'horizontal' ? 'hidden auto' : 'clip'}`;
 		viewport.style.setProperty('--page-w', `${d.pageW}px`);
 		viewport.style.setProperty('--page-h', `${d.pageH}px`);
 		flow.style.fontSize = `${state.size}px`;

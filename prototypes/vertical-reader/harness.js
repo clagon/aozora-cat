@@ -16,7 +16,8 @@ const reader = createReader(viewport);
 Object.assign(reader.state, {
 	size: Number(params.get('size') ?? 18),
 	mode: params.get('mode') ?? 'vertical',
-	approach: params.get('approach') ?? 'offsets'
+	// 採用した方式を既定にする。比較したいときだけ ?approach=offsets を付ける。
+	approach: params.get('approach') ?? 'columns'
 });
 
 function updateStatus() {
