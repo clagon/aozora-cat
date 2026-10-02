@@ -23,5 +23,6 @@ pnpm build
 ```
 
 The implementation is planned in [`plans/README.md`](plans/README.md). The
-repository currently contains the Plan 001 foundation only; corpus ingestion,
-reader behavior, and deployment are subsequent units.
+repository currently contains the Plan 001 foundation and the Plan 002 mobile
+design contract; corpus ingestion, reader behavior, and deployment are
+subsequent units.

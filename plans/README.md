@@ -20,7 +20,7 @@ plans in the order below unless the dependency column allows parallel work.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |---|---|---|---|---|---|
 | 001 | Bootstrap the verified SvelteKit foundation | P1 | M | — | DONE |
-| 002 | Define mobile wireframes and design contracts | P1 | M | 001 | TODO |
+| 002 | Define mobile wireframes and design contracts | P1 | M | 001 | DONE |
 | 003 | Prove vertical pagination with representative works | P1 | L | 001, 002 | TODO |
 | 004 | Build the safe Aozora conversion core | P1 | L | 001, 003 | TODO |
 | 005 | Build the full catalog import and release packager | P1 | L | 004 | TODO |
