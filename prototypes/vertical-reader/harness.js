@@ -63,4 +63,6 @@ Object.assign(window, {
 	setTheme: (/** @type {string} */ t) =>
 		(document.documentElement.dataset.theme = t)
 });
+// 開いてすぐ、矢印キー・PageDown・Space でページ送りできるようにする。
+viewport.focus();
 viewport.dataset.ready = 'true';

@@ -20,7 +20,7 @@
 
 ## フィクスチャ
 
-公式の図書カードと著作権フラグの根拠は `tests/fixtures/reader/manifest.json` にある。縮約は `prototypes/vertical-reader/tools/extract-fixtures.mjs`（使い捨て。本番の変換は Plan 004）。挿絵と外字は、画像そのものを保存せず SVG のプレースホルダーに置き換えた。
+公式の図書カードと著作権フラグの根拠は `tests/fixtures/reader/manifest.json` にある。縮約は `prototypes/vertical-reader/tools/extract-fixtures.ts`（使い捨て。本番の変換は Plan 004）。挿絵と外字は、画像そのものを保存せず SVG のプレースホルダーに置き換えた。
 
 | ID                   | 目的                                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------------- |

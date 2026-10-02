@@ -22,6 +22,11 @@ body {
 	outline: none;
 }
 
+#viewport:focus-visible {
+	outline: var(--focus-ring-width) var(--focus-ring-style) var(--color-focus);
+	outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
 .stage {
 	position: absolute;
 	overflow: hidden;

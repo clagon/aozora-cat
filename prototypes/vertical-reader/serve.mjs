@@ -1,7 +1,7 @@
 // 実機（iPhone / Android）からハーネスを開くための常駐サーバー。
 // 使い方: pnpm harness [ポート]  同じ Wi-Fi の端末で、表示された URL を開く。
 import { networkInterfaces } from 'node:os';
-import { startStaticServer } from '../../tests/e2e/static-server.mjs';
+import { startStaticServer } from '../../tests/e2e/static-server.ts';
 
 const port = Number(process.argv[2] ?? 4173);
 const server = await startStaticServer({ host: '0.0.0.0', port });

@@ -3,7 +3,7 @@
 //   --report: 採用する columns に加えて、不採用の offsets も全件実行して結果を表示する（失敗しても終了コード 0）。
 import { chromium, webkit, devices } from 'playwright';
 import { readFile } from 'node:fs/promises';
-import { startStaticServer } from './static-server.mjs';
+import { startStaticServer } from './static-server.ts';
 
 export const FIXTURES = [
 	'kumo-no-ito',
@@ -552,6 +552,14 @@ async function checkPositions(browser, url, name, failures) {
 
 async function checkGestures(browser, url, name, failures) {
 	await withReader(browser, url, base, async (page) => {
+		// マウス操作の前、開いた直後からキーで操作できること。
+		assert(
+			await page.evaluate(
+				() => document.activeElement === document.getElementById('viewport')
+			),
+			`${name} 開いた直後に本文がフォーカスされない`,
+			failures
+		);
 		const pageNo = () => page.evaluate(() => window.reader.state.page);
 		const drag = async (x0, y0, x1, y1) => {
 			await page.mouse.move(x0, y0);
@@ -621,7 +629,6 @@ async function checkGestures(browser, url, name, failures) {
 			failures
 		);
 
-		await page.evaluate(() => document.getElementById('viewport').focus());
 		for (const [key, delta] of [
 			['ArrowLeft', 1],
 			['ArrowRight', -1],
