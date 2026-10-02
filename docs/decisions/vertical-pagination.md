@@ -92,6 +92,22 @@ interface PagedReader {
 | 横書きでも multicol が効いたままだと、強制改ページで以降の本文が横の列へ送られて見えなくなる                                           | multicol のスタイルを縦書き（`data-mode='vertical'`）に限定し、横書きは通常のブロックの流れにする                                                                    |
 | ジェスチャーの `pointerup` は横書きで無効にしないとスクロールを奪う                                                                    | `enabled()` で縦書きのみに限定                                                                                                                                       |
 
+## 実機での確認手順
+
+1. `pnpm harness`（ポート指定は `pnpm harness 4200`）で常駐サーバーを起動する。表示された「同じネットワーク」の URL を、同じ Wi-Fi の iPhone / Android で開く。USB 接続の Android は `adb reverse tcp:4173 tcp:4173` で `http://localhost:4173/` も使える。
+2. クエリで条件を変える: `fixture`（`kokoro` `kumo-no-ito` `ginga-tetsudo` `rashomon-old` `kuroshikan` `aki-no-hitomi` `kaze-no-matasaburo` `edge-cases`）、`size`（16 / 18 / 20 / 24）、`theme`（`white` `paper` `night`）、`mode`（`vertical` `horizontal`）。既定は採用方式の `columns`（比較は `approach=offsets`）。
+3. 次を目視し、結果を下の表へ記入する。
+
+| 確認項目                                                               | iPhone Safari | Android Chrome |
+| ---------------------------------------------------------------------- | ------------- | -------------- |
+| 端末・OS・ブラウザのバージョン                                         | 未記入        | 未記入         |
+| 本文が切れず、ノッチ・ホームインジケータに重ならない（縦向き・横向き） | 未記入        | 未記入         |
+| 左右スワイプ・左右端タップで1ページずつ送れ、飛ばし・重複がない        | 未記入        | 未記入         |
+| 縦スクロールでページが動かず、中央タップで操作バーが開閉する           | 未記入        | 未記入         |
+| 文字サイズ 4 段階と 3 テーマで、ルビ・外字・挿絵がページ境界で切れない | 未記入        | 未記入         |
+| 向きを変える・縦横を切り替える前後で、同じ箇所から読める               | 未記入        | 未記入         |
+| `kuroshikan` と `edge-cases` の挿絵が、ページをまたがずに表示される    | 未記入        | 未記入         |
+
 ## 未達・要確認
 
 - **実機確認が未実施**: iPhone Safari と Android Chrome の実機またはリモート端末を、この環境では使えなかった（デバイス接続が無効）。端末プロファイルでの代替は、iOS の動的ツールバーや安全領域、実フォントの寸法を再現しない。Plan 003 の STOP 条件「デスクトップ・エミュレーションのみ」に近いため、運営者が実機でハーネス（`prototypes/vertical-reader`。既定は採用方式の `columns`、比較用に `?approach=offsets`）を開いて確認し、結果をここへ追記するまで本方式を確定扱いにしない。

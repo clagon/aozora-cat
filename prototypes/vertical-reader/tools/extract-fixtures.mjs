@@ -43,7 +43,7 @@ function clean(html) {
 		.replace(
 			/<img class="illustration" width="(\d+)" height="(\d+)"[^>]*alt="([^"]*)"[^>]*>/g,
 			(_, w, h, alt) =>
-				`<img class="illustration" src="/img/illustration.svg" alt="${alt}" width="${w}" height="${h}">`
+				`<img class="illustration" src="/img/illustration.svg" alt="${alt}" width="${w}" height="${h}" style="aspect-ratio:${w}/${h}">`
 		)
 		.replace(/<rp>[^<]*<\/rp>/g, '')
 		.replace(/<rb>(.*?)<\/rb>/g, '$1')

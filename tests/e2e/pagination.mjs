@@ -527,6 +527,11 @@ async function checkPositions(browser, url, name, failures) {
 			});
 			// 挿絵だけのページが小さなアイコンではなく、実際に大きな画像で検証されていること。
 			assert(
+				Math.abs(r.imageHeight - r.imageWidth * 2) <= 2,
+				`${name} 挿絵の縦横比が320×640でない: ${r.imageWidth}x${r.imageHeight}`,
+				failures
+			);
+			assert(
 				r.imageHeight > 300,
 				`${name} 挿絵だけのページの画像が小さすぎる: ${r.imageWidth}x${r.imageHeight}`,
 				failures

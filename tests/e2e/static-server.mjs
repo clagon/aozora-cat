@@ -17,8 +17,11 @@ const types = {
 	'.svg': 'image/svg+xml'
 };
 
-/** 検証ハーネス用の最小の静的サーバー。port 0 で空きポートを使う。 */
-export async function startStaticServer() {
+/**
+ * 検証ハーネス用の最小の静的サーバー。既定は自動テスト向けに 127.0.0.1 の空きポート。
+ * 実機から開くときは host に 0.0.0.0 を渡す（prototypes/vertical-reader/serve.mjs）。
+ */
+export async function startStaticServer({ host = '127.0.0.1', port = 0 } = {}) {
 	const server = createServer(async (req, res) => {
 		const path = new URL(req.url ?? '/', 'http://x').pathname;
 		const route = routes.find(([prefix]) => path.startsWith(prefix));
@@ -37,11 +40,12 @@ export async function startStaticServer() {
 			res.writeHead(404).end();
 		}
 	});
-	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	await new Promise((resolve) => server.listen(port, host, resolve));
 	const address = server.address();
 	if (!address || typeof address === 'string') throw new Error('no port');
 	return {
-		url: `http://127.0.0.1:${address.port}`,
+		url: `http://${host}:${address.port}`,
+		port: address.port,
 		close: () => server.close()
 	};
 }
