@@ -396,6 +396,21 @@ async function checkPositions(browser, url, name, failures) {
 			`${name} 横書きのスクロール位置が丸められた: ${JSON.stringify(rounded)}`,
 			failures
 		);
+		// プログラムによるスクロールの直後に、利用者が別の位置へ動かし、元の位置へ戻っても取り込む。
+		await page.evaluate(() => window.reader.goTo(3));
+		await page.evaluate(() => {
+			document.querySelector('.stage').scrollTop = 1000;
+		});
+		await page.waitForFunction(
+			() =>
+				window.reader.state.page ===
+				Math.floor(1000 / window.reader.state.pageH)
+		);
+		await page.evaluate(() => {
+			document.querySelector('.stage').scrollTop =
+				3 * window.reader.state.pageH;
+		});
+		await page.waitForFunction(() => window.reader.state.page === 3);
 		// 横書きで進めた位置は、縦書きへ戻したときの新しい基準になる。
 		const d = await page.evaluate(() => window.reader.state.anchor);
 		await page.evaluate(() => window.reader.configure({ mode: 'vertical' }));
@@ -598,6 +613,48 @@ async function checkDevice(browser, url, name, failures) {
 			`${name} 端末のタッチで右端タップが前ページにならない`,
 			failures
 		);
+
+		// 横方向のドラッグをブラウザに奪われないこと（pan-y のみ許可）。
+		const touchAction = await page.evaluate(
+			() => getComputedStyle(document.getElementById('viewport')).touchAction
+		);
+		assert(
+			touchAction === 'pan-y',
+			`${name} touch-action が pan-y でない: ${touchAction}`,
+			failures
+		);
+		if (name === 'chromium') {
+			// 実際のタッチ入力（CDP）でも、左スワイプで次ページ・右スワイプで前ページになる。
+			const client = await page.context().newCDPSession(page);
+			const swipe = async (x0, x1, y) => {
+				const point = (x) => [{ x, y, id: 1 }];
+				await client.send('Input.dispatchTouchEvent', {
+					type: 'touchStart',
+					touchPoints: point(x0)
+				});
+				for (let step = 1; step <= 6; step += 1) {
+					await client.send('Input.dispatchTouchEvent', {
+						type: 'touchMove',
+						touchPoints: point(x0 + ((x1 - x0) * step) / 6)
+					});
+				}
+				await client.send('Input.dispatchTouchEvent', {
+					type: 'touchEnd',
+					touchPoints: []
+				});
+			};
+			const pageNo = () => page.evaluate(() => window.reader.state.page);
+			await page.evaluate(() => window.reader.goTo(6));
+			await swipe(width * 0.8, width * 0.2, 400);
+			await page.waitForFunction(() => window.reader.state.page === 7);
+			await swipe(width * 0.2, width * 0.8, 400);
+			await page.waitForFunction(() => window.reader.state.page === 6);
+			assert(
+				(await pageNo()) === 6,
+				`${name} 端末のタッチスワイプで往復できない`,
+				failures
+			);
+		}
 	});
 }
 

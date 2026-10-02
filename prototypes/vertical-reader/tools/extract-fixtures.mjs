@@ -25,17 +25,9 @@ async function fetchShiftJis(url) {
 	return new TextDecoder('shift_jis').decode(await readFile(path));
 }
 
-/** 本文の1行を意味を保った最小のHTMLへ縮約する。 */
-function convertLine(raw) {
-	let line = raw.trim();
-	if (line === '') return { tag: 'blank', html: '' };
-	if (/^<span class="notes">［＃改ページ］<\/span>$/.test(line))
-		return { tag: 'break', html: '<hr data-page-break>' };
-	if (/^<span class="notes">［＃ページの左右中央］<\/span>$/.test(line))
-		return { tag: 'skip', html: '' };
-	const heading = line.match(/<h(\d) class="[^"]*"><a [^>]*>(.*?)<\/a><\/h\d>/);
-	if (heading) return { tag: 'h', html: `<h2>${heading[2]}</h2>` };
-	line = line
+/** 上流の記法を、検証に必要な最小のHTMLへ正規化する。見出しにも同じ処理を通す。 */
+function clean(html) {
+	return html
 		.replace(/<div class="(?:jisage|chitsuki)_\d+"[^>]*>/g, '')
 		.replace(/<\/div>/g, '')
 		.replace(
@@ -57,6 +49,19 @@ function convertLine(raw) {
 		.replace(/<rb>(.*?)<\/rb>/g, '$1')
 		.replace(/<span class="notes">.*?<\/span>/g, '')
 		.replace(/<br \/>/g, '');
+}
+
+/** 本文の1行を意味を保った最小のHTMLへ縮約する。 */
+function convertLine(raw) {
+	let line = raw.trim();
+	if (line === '') return { tag: 'blank', html: '' };
+	if (/^<span class="notes">［＃改ページ］<\/span>$/.test(line))
+		return { tag: 'break', html: '<hr data-page-break>' };
+	if (/^<span class="notes">［＃ページの左右中央］<\/span>$/.test(line))
+		return { tag: 'skip', html: '' };
+	const heading = line.match(/<h(\d) class="[^"]*"><a [^>]*>(.*?)<\/a><\/h\d>/);
+	if (heading) return { tag: 'h', html: `<h2>${clean(heading[2])}</h2>` };
+	line = clean(line);
 	// 挿絵だけの行だけを単独画像として扱う。文中の画像は行内に残す。
 	return /^<img class="illustration"[^>]*>$/.test(line)
 		? { tag: 'img', html: line }

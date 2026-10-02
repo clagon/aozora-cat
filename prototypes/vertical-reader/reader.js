@@ -215,8 +215,10 @@ export function createReader(viewport) {
 	function show(page, remember = true, top) {
 		state.page = Math.min(Math.max(0, page), state.pageCount - 1);
 		if (state.mode === 'horizontal') {
+			const before = stage.scrollTop;
 			stage.scrollTop = top ?? state.page * state.pageH;
-			programmaticTop = stage.scrollTop;
+			// 位置が変わったときだけ、直後に来る1回の scroll イベントを自分のものとして扱う。
+			programmaticTop = stage.scrollTop === before ? -1 : stage.scrollTop;
 			flow.style.transform = '';
 		} else if (state.approach === 'columns') {
 			stage.scrollTop = 0; // 横書きで残ったスクロール量と二重にずれないようにする
@@ -236,7 +238,11 @@ export function createReader(viewport) {
 		if (state.mode !== 'horizontal') return;
 		const y = stage.scrollTop;
 		// show() 自身のスクロールは、細かい位置の基準を上書きしない。
-		if (Math.abs(y - programmaticTop) < 1) return;
+		if (programmaticTop >= 0 && Math.abs(y - programmaticTop) < 1) {
+			programmaticTop = -1;
+			return;
+		}
+		programmaticTop = -1;
 		// 丸めたページ先頭ではなく、実際の表示位置にある最初の項目を基準にする。
 		const first = state.items.find(
 			(i) => isBody(i) && i.page * state.pageH + i.across >= y - EPS

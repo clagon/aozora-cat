@@ -10,7 +10,8 @@ body {
 #viewport {
 	position: fixed;
 	inset: 0;
-	touch-action: manipulation;
+	/* 横方向のドラッグはページ送りに使うため、ブラウザへ渡さない。縦のスクロールだけ許す。 */
+	touch-action: pan-y;
 	box-sizing: border-box;
 	/* viewport-fit=cover でもノッチやホームインジケータに本文が重ならないよう、安全領域つきの余白を使う。 */
 	padding: var(--content-padding-top) var(--content-padding-right)
