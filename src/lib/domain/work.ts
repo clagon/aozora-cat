@@ -328,10 +328,14 @@ function inline(
 	if (kind === 'ruby') {
 		if (inRuby) throw new Invalid(path, 'ルビの親文字にルビは入れられません');
 		const r = rec(v, path, ['kind', 'base', 'reading']);
+		const base = list(r, 'base', path, (b, p) => inline(b, p, depth + 1, true));
+		// 親文字が空白だけでは、ルビを付ける対象がない。
+		if (!base.some((b) => b.kind !== 'text' || b.text.trim() !== ''))
+			throw new Invalid(`${path}.base`, '親文字に見える文字がありません');
 		return {
 			kind,
-			base: list(r, 'base', path, (b, p) => inline(b, p, depth + 1, true)),
-			reading: str(r, 'reading', path)
+			base,
+			reading: visible(r, 'reading', path)
 		};
 	}
 	if (kind === 'emphasis') {

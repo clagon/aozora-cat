@@ -509,6 +509,16 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		],
 		['読みのないルビ', '<ruby><rb>漢</rb></ruby>', 'unsupported-construct'],
 		[
+			'空白だけの読みのルビ',
+			'<ruby><rb>漢</rb><rt>　</rt></ruby>',
+			'unsupported-construct'
+		],
+		[
+			'空白だけの親文字のルビ',
+			'<ruby><rb> </rb><rt>かん</rt></ruby>',
+			'unsupported-construct'
+		],
+		[
 			'読みが複数のルビ',
 			'<ruby><rb>漢</rb><rt>かん</rt><rt>kan</rt></ruby>',
 			'unsupported-construct'
