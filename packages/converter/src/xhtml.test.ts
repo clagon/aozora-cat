@@ -689,6 +689,23 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		).toBe(false);
 	});
 
+	it('底本情報の中のリンクの実行につながる属性も記録する', () => {
+		const r = convertXhtml(
+			page(
+				'x<br />',
+				'',
+				'底本：<a href="javascript:alert(1)" onclick="x()">本</a><br />'
+			),
+			source
+		);
+		expect(r.ok).toBe(true);
+		const active = r.ok
+			? r.diagnostics.filter((d) => d.code === 'active-content-removed')
+			: [];
+		expect(active.some((d) => d.message.includes('href'))).toBe(true);
+		expect(active.some((d) => d.message.includes('onclick'))).toBe(true);
+	});
+
 	it('要素が非常に多くても、例外にせず結果を返す', () => {
 		const wide = '<span class="futoji">あ</span>'.repeat(150000);
 		for (const wrap of [

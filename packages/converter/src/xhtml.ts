@@ -737,6 +737,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		for (const node of nodes) {
 			if (isText(node)) current += plainText(node);
 			else if (isEl(node) && node.tagName === 'br') {
+				attrs(node, []);
 				bibliography.push(current);
 				current = '';
 			} else if (isEl(node) && ACTIVE.has(node.tagName))
@@ -745,12 +746,15 @@ function convert(html: string, source: WorkSource): ConvertResult {
 					`<${node.tagName}> を取り除きました`,
 					node
 				);
-			else if (isEl(node) && node.tagName === 'hr') continue;
+			else if (isEl(node) && node.tagName === 'hr') attrs(node, []);
 			else if (isEl(node) && node.tagName === 'a') {
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
+				attrs(node, ['href']);
 				collect(node.childNodes);
-			} else if (isEl(node) && isGaiji(node)) current += gaijiText(node);
-			else if (isEl(node))
+			} else if (isEl(node) && isGaiji(node)) {
+				attrs(node, ['class', 'src', 'alt']);
+				current += gaijiText(node);
+			} else if (isEl(node))
 				fail(
 					'unknown-element',
 					`底本情報の中の未知の要素 <${node.tagName}>`,
