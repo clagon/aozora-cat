@@ -662,6 +662,17 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		expect(convertXhtml(page(notes), source).ok).toBe(false);
 	});
 
+	it('要素が非常に多くても、例外にせず結果を返す', () => {
+		const wide = '<span class="futoji">あ</span>'.repeat(150000);
+		for (const wrap of [
+			(x: string) => x,
+			(x: string) => `<a href="x">${x}</a>`
+		]) {
+			const r = convertXhtml(page(`${wrap(wide)}<br />`), source);
+			expect(r.ok).toBe(true);
+		}
+	});
+
 	it('未知のセクションと、必須のセクションの欠落', () => {
 		expect(failure('x<br />', '<div class="advert">x</div>')?.code).toBe(
 			'unknown-section'

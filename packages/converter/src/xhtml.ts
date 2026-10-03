@@ -505,7 +505,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 						`<${node.tagName}> を取り除きました`,
 						node
 					);
-				else out.push(...inlineEl(node, inRuby));
+				else for (const d of inlineEl(node, inRuby)) out.push(d);
 			}
 		}
 		return merge(out);
@@ -697,7 +697,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				skipBr = wasSkipping;
 				noteSpan(node);
 			} else {
-				line.push(...inlineEl(node, false));
+				// 要素が多くても引数の上限に当たらないよう、展開せず1つずつ足す。
+				for (const d of inlineEl(node, false)) line.push(d);
 			}
 		}
 		flushIfNeeded(at);
