@@ -187,9 +187,14 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
-/** 描画される文字がないか。空白に加えて、幅のない書式文字（U+200B など）と制御文字だけの場合も真。 */
+/** 描画される文字がないか。空白に加えて、幅のない書式文字（U+200B など）、制御文字、異体字selectorなど表示されない文字だけの場合も真。 */
 export function isBlank(s: string): boolean {
-	return s.replace(/[\p{White_Space}\p{Cf}\p{Cc}]/gu, '') === '';
+	return (
+		s.replace(
+			/[\p{White_Space}\p{Cf}\p{Cc}\p{Default_Ignorable_Code_Point}]/gu,
+			''
+		) === ''
+	);
 }
 
 /** 見える文字（または外字・画像）を含むか。装飾の中も調べる。注記は表示しないので数えない。 */

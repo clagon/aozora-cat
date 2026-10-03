@@ -678,7 +678,7 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 	});
 
 	it('幅のない文字だけの説明・読みは、空白と同じく失敗にする', () => {
-		const zw = '\u200b\u2060';
+		const zw = '\u200b\u2060\ufe0f\u034f';
 		const img = `<img src="../../../gaiji/a.png" alt="${zw}" class="gaiji" />`;
 		expect(failure(`<span class="notes">［＃${img}］</span><br />`)?.code).toBe(
 			'invalid-image'
