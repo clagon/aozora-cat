@@ -72,6 +72,9 @@ const ACTIVE = new Set([
 	'canvas'
 ]);
 
+/** 中身が文字ではなくコードの要素。中に文字があっても本文ではないので、そのまま取り除く。 */
+const CODE = new Set(['script', 'style']);
+
 const BREAKS: Record<string, PageBreakStyle> = {
 	改ページ: 'page',
 	改丁: 'leaf',
@@ -161,6 +164,19 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		diagnostics.push({ code, message, location: where(el) });
 	};
 
+	/** 実行につながる要素を取り除く。表示される文字を含むものは、情報を失わないよう失敗させる。 */
+	const removeActive = (el: El) => {
+		const hasText = (n: Node): boolean =>
+			isText(n) ? n.value.trim() !== '' : isEl(n) && n.childNodes.some(hasText);
+		if (!CODE.has(el.tagName) && el.childNodes.some(hasText))
+			fail(
+				'unsupported-construct',
+				`<${el.tagName}> の中に表示される文字があります`,
+				el
+			);
+		note('active-content-removed', `<${el.tagName}> を取り除きました`, el);
+	};
+
 	/** 意味を持つ属性以外は捨てる。イベント属性や javascript: は、捨てたことを記録する。 */
 	const attrs = (el: El, allowed: string[]) => {
 		for (const { name, value } of el.attrs) {
@@ -227,11 +243,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		}
 		if (!isEl(node)) continue;
 		if (ACTIVE.has(node.tagName)) {
-			note(
-				'active-content-removed',
-				`<${node.tagName}> を取り除きました`,
-				node
-			);
+			removeActive(node);
 			continue;
 		}
 		const cls = attr(node, 'class');
@@ -532,12 +544,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				const text = plainText(node);
 				if (text !== '') out.push({ kind: 'text', text });
 			} else if (isEl(node)) {
-				if (ACTIVE.has(node.tagName))
-					note(
-						'active-content-removed',
-						`<${node.tagName}> を取り除きました`,
-						node
-					);
+				if (ACTIVE.has(node.tagName)) removeActive(node);
 				else for (const d of inlineEl(node, inRuby)) out.push(d);
 			}
 		}
@@ -692,11 +699,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			}
 			if (!isEl(node)) continue;
 			if (ACTIVE.has(node.tagName)) {
-				note(
-					'active-content-removed',
-					`<${node.tagName}> を取り除きました`,
-					node
-				);
+				removeActive(node);
 				continue;
 			}
 			if (node.tagName === 'br') {
@@ -749,12 +752,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				attrs(node, []);
 				bibliography.push(current);
 				current = '';
-			} else if (isEl(node) && ACTIVE.has(node.tagName))
-				note(
-					'active-content-removed',
-					`<${node.tagName}> を取り除きました`,
-					node
-				);
+			} else if (isEl(node) && ACTIVE.has(node.tagName)) removeActive(node);
 			else if (isEl(node) && node.tagName === 'hr') attrs(node, []);
 			else if (isEl(node) && node.tagName === 'a') {
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);

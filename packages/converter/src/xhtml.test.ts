@@ -693,6 +693,37 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('表示される文字を含む実行要素は、中身ごと捨てずに失敗にする', () => {
+		for (const el of [
+			'<form>底本：本文</form>',
+			'<noscript>本文</noscript>',
+			'<iframe>本文</iframe>',
+			'<object><b>本文</b></object>'
+		]) {
+			expect(failure(`${el}<br />`)?.code, el).toBe('unsupported-construct');
+			expect(
+				failure(`あ<em class="sesame_dot">${el}</em><br />`)?.code,
+				el
+			).toBe('unsupported-construct');
+			const r = convertXhtml(
+				page('x<br />', '', `底本：x<br />${el}<br />`),
+				source
+			);
+			expect(r, el).toMatchObject({
+				ok: false,
+				failure: { code: 'unsupported-construct' }
+			});
+		}
+		// 文字を含まない要素と、コードの要素は、記録して取り除く。
+		for (const el of [
+			'<iframe src="x"></iframe>',
+			'<script>alert(1)</script>',
+			'<style>a{}</style>',
+			'<form><input name="x" /></form>'
+		])
+			expect(ok(`あ${el}<br />`).diagnostics.length, el).toBeGreaterThan(0);
+	});
+
 	it('rp の中の要素、注記の中の入れ子のルビを失敗にし、注記の外字の属性も記録する', () => {
 		for (const rp of [
 			'<img src="a.png" alt="（" />',
