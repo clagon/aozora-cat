@@ -755,6 +755,27 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('注記の中の空白だけのルビと、srcdoc にだけ文字のある iframe を失敗にする', () => {
+		for (const ruby of [
+			'<ruby><rb>漢</rb><rt>　</rt></ruby>',
+			'<ruby><rb> </rb><rt>かん</rt></ruby>'
+		])
+			expect(
+				failure(`<span class="notes">［＃${ruby}］</span><br />`)?.code,
+				ruby
+			).toBe('unsupported-construct');
+		const iframe = '<iframe srcdoc="底本：A"></iframe>';
+		expect(failure(`${iframe}<br />`)?.code).toBe('unsupported-construct');
+		const r = convertXhtml(
+			page('x<br />', '', `底本：x<br />${iframe}<br />`),
+			source
+		);
+		expect(r).toMatchObject({
+			ok: false,
+			failure: { code: 'unsupported-construct' }
+		});
+	});
+
 	it('字下げなどの中のキャプションは、字下げを捨てずに失敗にする', () => {
 		for (const wrapper of [
 			'<div class="jisage_2" style="margin-left: 2em">',

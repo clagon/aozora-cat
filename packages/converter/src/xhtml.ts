@@ -128,7 +128,8 @@ const TEXT_ATTRS = [
 	'title',
 	'placeholder',
 	'label',
-	'aria-label'
+	'aria-label',
+	'srcdoc'
 ];
 
 /** 木の深さの上限。公式のファイルは十数段で、これを超えるのは異常な入力。 */
@@ -342,7 +343,11 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				if (inRuby)
 					fail('unsupported-construct', 'ルビの中にルビがあります', child);
 				const { rb, rt } = rubyParts(child);
-				return `${noteText(rb, true)}《${noteText(rt, true)}》`;
+				const base = noteText(rb, true);
+				const reading = noteText(rt, true);
+				if (base.trim() === '' || reading.trim() === '')
+					fail('unsupported-construct', '注記の中のルビが空白だけです', child);
+				return `${base}《${reading}》`;
 			})
 			.join('');
 
