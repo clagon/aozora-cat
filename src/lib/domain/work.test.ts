@@ -13,6 +13,8 @@ function valid() {
 		subtitle: '童話',
 		subtitleReading: 'どうわ',
 		classification: 'NDC 913',
+		originalTitle: 'The Spider Thread',
+		firstPublication: '「赤い鳥」1918（大正7）年7月',
 		people: [
 			{ role: 'author', name: '芥川竜之介', reading: 'あくたがわりゅうのすけ' }
 		],
@@ -202,6 +204,9 @@ describe('parseWork', () => {
 		rejects('provenance.converter.version', 'v1');
 		rejects('people', []);
 		rejects('people[0].role', 'illustrator');
+		for (const role of ['reviser', 'editor', 'translator', 'other']) {
+			expect(parseWork(change('people[0].role', role)).ok, role).toBe(true);
+		}
 		rejects('blocks[4].size.width', 0);
 		for (const side of [1e100, 10001, Number.MAX_SAFE_INTEGER + 2, -1, 'x']) {
 			rejects('blocks[4].size.width', side);
@@ -248,7 +253,13 @@ describe('parseWork', () => {
 	});
 
 	it('副題・読み・分類は任意だが、あれば空を許さない', () => {
-		for (const key of ['subtitle', 'subtitleReading', 'classification']) {
+		for (const key of [
+			'subtitle',
+			'subtitleReading',
+			'classification',
+			'originalTitle',
+			'firstPublication'
+		]) {
 			// 副題を外すときは、副題の読みも一緒に外す。
 			const without = change('subtitleReading', REMOVE);
 			const doc =
