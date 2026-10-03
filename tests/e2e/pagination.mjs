@@ -875,24 +875,32 @@ async function checkControls(browser, url, name, failures) {
 }
 
 async function checkMotion(browser, url, name, failures) {
-	const duration = async (reducedMotion) => {
-		let value = '';
+	// ページ送りは横方向のスライド。動きを減らす設定では実質ゼロにする。
+	const turn = async (reducedMotion) => {
+		let result = { duration: -1, x: '' };
 		await withReader(browser, url, { ...base, reducedMotion }, async (page) => {
-			value = await page.evaluate(
-				() =>
-					getComputedStyle(document.querySelector('.flow')).transitionDuration
-			);
+			result = await page.evaluate(() => {
+				window.reader.next();
+				const [anim] = document.querySelector('.stage').getAnimations();
+				return {
+					duration: anim ? anim.effect.getTiming().duration : -1,
+					x: anim ? String(anim.effect.getKeyframes()[0].transform) : ''
+				};
+			});
 		});
-		return Number.parseFloat(value);
+		return result;
 	};
+	const reduced = await turn('reduce');
 	assert(
-		(await duration('reduce')) <= 0.01,
+		reduced.duration >= 0 && reduced.duration <= 10,
 		`${name} 動きを減らす設定でも遷移が残る`,
 		failures
 	);
+	const normal = await turn('no-preference');
+	assert(normal.duration >= 100, `${name} 通常時の遷移が短すぎる`, failures);
 	assert(
-		(await duration('no-preference')) >= 0.1,
-		`${name} 通常時の遷移が短すぎる`,
+		/translateX\(-?\d/.test(normal.x) && !/translateY/.test(normal.x),
+		`${name} ページ送りの動きが横方向でない: ${normal.x}`,
 		failures
 	);
 }
