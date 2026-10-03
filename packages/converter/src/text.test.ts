@@ -457,6 +457,18 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'unknown-notation'
 		],
 		[
+			'範囲外の面区点の外字',
+			'あ※［＃x、第9水準9-99-99］い',
+			'unknown-notation'
+		],
+		['区が0の外字', 'あ※［＃x、第3水準1-0-5］い', 'unknown-notation'],
+		['点が95の外字', 'あ※［＃x、第3水準1-1-95］い', 'unknown-notation'],
+		[
+			'画像を親文字にするルビ',
+			'｜［＃図（fig92_01.png、横1×縦1）入る］《え》',
+			'ruby-base'
+		],
+		[
 			'サロゲートの U+ の外字',
 			'あ※［＃「x」、U+D800、1-1］い',
 			'unknown-notation'

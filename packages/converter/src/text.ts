@@ -221,6 +221,22 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		const parts = inner.split('、');
 		const code = parts.at(-1)?.match(/^(?:第\d水準)?(\d)-(\d{1,2})-(\d{1,2})$/);
 		if (code) {
+			const [plane, row, cell] = [code[1], code[2], code[3]].map(Number);
+			// JIS X 0213 の面は1か2、区と点はそれぞれ1〜94。
+			if (
+				(plane !== 1 && plane !== 2) ||
+				row < 1 ||
+				row > 94 ||
+				cell < 1 ||
+				cell > 94
+			)
+				return fail(
+					'unknown-notation',
+					'外字の面区点が JIS X 0213 の範囲にありません',
+					n,
+					col,
+					`［＃${inner}］`
+				);
 			const [, men, ku, ten] = code;
 			const k = ku.padStart(2, '0');
 			const t = ten.padStart(2, '0');
@@ -410,7 +426,10 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				}
 				const baseUnits = units.slice(barAt >= 0 ? start + 1 : start);
 				const base = toInline(baseUnits, n);
-				if (base.length === 0 || base.some((b) => b.kind === 'ruby'))
+				if (
+					base.length === 0 ||
+					base.some((b) => b.kind === 'ruby' || b.kind === 'image')
+				)
 					fail('ruby-base', 'ルビの親文字が正しくありません', n, tok.col);
 				units.splice(start, units.length - start, {
 					k: 'node',
