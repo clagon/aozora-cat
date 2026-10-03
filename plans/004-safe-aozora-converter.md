@@ -99,3 +99,16 @@ fallback behavior required by the product decision.
 
 Every new upstream construct needs a fixture, schema decision, and versioning
 review. Security reviewers should focus on URL normalization and HTML allowlists.
+
+## Deferred constructs
+
+Schema version 1 covers the notation used by the approved fixtures and the
+fields of the official catalog. The converter must fail closed on the
+constructs below until a fixture requires them and a schema decision is made:
+
+- Block-scoped begin/end forms (`［＃ここから罫囲み］`, block-level 横組み and
+  character-size ranges), which need a wrapper or range marker over blocks.
+- Window headings and inline headings (同行見出し・窓見出し), which change how
+  the surrounding text flows and need a heading form independent of its level.
+- Any other construct from the official annotation guide not listed in the
+  approved fixtures (for example 返り点 and 訓点送り仮名).
