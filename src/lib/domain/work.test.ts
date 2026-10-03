@@ -422,6 +422,20 @@ describe('parseWork', () => {
 		}
 	});
 
+	it('ルビの親文字に挿絵（image）を入れられない', () => {
+		const image = {
+			kind: 'image',
+			alt: '',
+			size: { width: 1, height: 1 },
+			image: { url: 'https://www.aozora.gr.jp/cards/000879/files/fig92_01.png' }
+		};
+		rejects(
+			'blocks[2].inline[1].base[2]',
+			image,
+			'$.blocks[2].inline[1].base[2]'
+		);
+	});
+
 	it('深すぎる入れ子を拒否する', () => {
 		let node: unknown = { kind: 'text', text: 'x' };
 		for (let i = 0; i < 20; i++) node = { kind: 'strong', children: [node] };

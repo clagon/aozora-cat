@@ -217,7 +217,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 
 	const root = doc.childNodes.filter(isEl).find((e) => e.tagName === 'html');
 	const body = root?.childNodes.filter(isEl).find((e) => e.tagName === 'body');
-	if (!body)
+	// 元のファイルに html と body がない場合、parse5 が補うので、位置のないものは存在しないものとして扱う。
+	if (!root?.sourceCodeLocation || !body?.sourceCodeLocation)
 		throw new Failure('missing-section', 'body がありません', 'document');
 
 	// 再帰で読む前に、木の深さを数える。深く入れ子にした入力で例外にならないようにする。
@@ -502,7 +503,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		return [{ kind: 'ruby', base, reading }];
 	}
 
-	function image(el: El): Draft[] {
+	function image(el: El, inRuby: boolean): Draft[] {
 		const cls = attr(el, 'class');
 		if (cls === 'gaiji') {
 			attrs(el, ['class', 'src', 'alt']);
@@ -512,6 +513,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			return [{ kind: 'gaiji', description, image: { url: resolve(el) } }];
 		}
 		if (cls === 'illustration') {
+			if (inRuby)
+				fail('unsupported-construct', 'ルビの親文字に挿絵は置けません', el);
 			attrs(el, ['class', 'src', 'alt', 'width', 'height']);
 			return [
 				{
@@ -561,7 +564,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				return container(el, kind, inRuby);
 			}
 			case 'img':
-				return image(el);
+				return image(el, inRuby);
 			case 'a':
 				// リンクは外へ出さない。文字だけを残す。
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', el);

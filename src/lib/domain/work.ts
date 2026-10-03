@@ -392,6 +392,7 @@ function inline(
 		};
 	}
 	if (kind === 'image') {
+		if (inRuby) throw new Invalid(path, 'ルビの親文字に挿絵は入れられません');
 		const r = rec(v, path, ['kind', 'image', 'alt', 'size']);
 		return {
 			kind,

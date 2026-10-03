@@ -763,6 +763,23 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('ルビの親文字の挿絵と、html・body のないファイルを失敗にする', () => {
+		expect(
+			failure(`<ruby><rb>${fig('fig92_01.png')}</rb><rt>かん</rt></ruby><br />`)
+				?.code
+		).toBe('unsupported-construct');
+		const noBody = page('x<br />').replace('<body>', '').replace('</body>', '');
+		expect(convertXhtml(noBody, source)).toMatchObject({
+			ok: false,
+			failure: { code: 'missing-section' }
+		});
+		const noHtml = `<div class="main_text">x<br /></div><div class="bibliographical_information">底本：y<br /></div>`;
+		expect(convertXhtml(noHtml, source)).toMatchObject({
+			ok: false,
+			failure: { code: 'missing-section' }
+		});
+	});
+
 	it('本文の外字も、空白だけの説明を失敗にする', () => {
 		for (const alt of ['　', ' ', '  ', '\u200b', '\u2060\u200c', '\ufeff']) {
 			expect(
