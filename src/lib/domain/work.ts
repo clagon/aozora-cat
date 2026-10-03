@@ -187,10 +187,15 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
+/** 描画される文字がないか。空白に加えて、幅のない書式文字（U+200B など）と制御文字だけの場合も真。 */
+export function isBlank(s: string): boolean {
+	return s.replace(/[\p{White_Space}\p{Cf}\p{Cc}]/gu, '') === '';
+}
+
 /** 見える文字（または外字・画像）を含むか。装飾の中も調べる。注記は表示しないので数えない。 */
 export function hasVisible(nodes: Inline[]): boolean {
 	return nodes.some((n) => {
-		if (n.kind === 'text') return n.text.trim() !== '';
+		if (n.kind === 'text') return !isBlank(n.text);
 		if (n.kind === 'note') return false;
 		if (n.kind === 'gaiji' || n.kind === 'image') return true;
 		if (n.kind === 'ruby') return hasVisible(n.base);
@@ -201,7 +206,7 @@ export function hasVisible(nodes: Inline[]): boolean {
 /** 空白だけではない文字列。外字の説明のように、見えない値では代わりにならないものに使う。 */
 function visible(r: Rec, key: string, path: string): string {
 	const v = str(r, key, path);
-	if (v.trim() === '')
+	if (isBlank(v))
 		throw new Invalid(`${path}.${key}`, '空白だけの文字列は使えません');
 	return v;
 }

@@ -249,6 +249,10 @@ describe('parseWork', () => {
 		rejects('blocks[2].inline[0].text', '');
 		rejects('blocks[2].inline[1].base[0].description', '　');
 		rejects('blocks[2].inline[1].reading', '　');
+		for (const zw of ['\u200b', '\u2060\u200c', '\ufeff']) {
+			rejects('blocks[2].inline[1].reading', zw);
+			rejects('blocks[2].inline[1].base[0].description', zw);
+		}
 		rejects(
 			'blocks[2].inline[1].base',
 			[{ kind: 'strong', children: [{ kind: 'text', text: ' ' }] }],

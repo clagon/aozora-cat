@@ -5,6 +5,7 @@ import type { DefaultTreeAdapterMap } from 'parse5';
 import {
 	EMPHASIS_MARKS,
 	hasVisible,
+	isBlank,
 	isGaijiImageUrl,
 	WORK_SCHEMA_VERSION,
 	parseWork
@@ -346,7 +347,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				const { rb, rt } = rubyParts(child);
 				const base = noteText(rb, true);
 				const reading = noteText(rt, true);
-				if (base.trim() === '' || reading.trim() === '')
+				if (isBlank(base) || isBlank(reading))
 					fail('unsupported-construct', '注記の中のルビが空白だけです', child);
 				return `${base}《${reading}》`;
 			})
@@ -356,7 +357,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	const gaijiText = (el: El): string => {
 		attrs(el, ['class', 'src', 'alt']);
 		const alt = attr(el, 'alt') ?? '';
-		if (alt.trim() === '')
+		if (isBlank(alt))
 			fail('invalid-image', '外字の説明（alt）がありません', el);
 		// 説明文を信頼する前に、画像の参照も本文の外字と同じ規則で確かめる。
 		if (!isGaijiImageUrl(resolve(el)))
@@ -496,7 +497,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		const { rb, rt } = rubyParts(el);
 		const base = onlyInline(inlines(rb.childNodes, true), rb);
 		const reading = plainText(rt);
-		if (!hasVisible(base) || reading.trim() === '')
+		if (!hasVisible(base) || isBlank(reading))
 			fail('unsupported-construct', 'ルビの親文字または読みが空です', el);
 		return [{ kind: 'ruby', base, reading }];
 	}
@@ -506,7 +507,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		if (cls === 'gaiji') {
 			attrs(el, ['class', 'src', 'alt']);
 			const description = attr(el, 'alt') ?? '';
-			if (description.trim() === '')
+			if (isBlank(description))
 				fail('invalid-image', '外字の説明（alt）がありません', el);
 			return [{ kind: 'gaiji', description, image: { url: resolve(el) } }];
 		}

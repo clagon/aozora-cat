@@ -677,6 +677,20 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		expect(convertXhtml(page(notes), source).ok).toBe(false);
 	});
 
+	it('幅のない文字だけの説明・読みは、空白と同じく失敗にする', () => {
+		const zw = '\u200b\u2060';
+		const img = `<img src="../../../gaiji/a.png" alt="${zw}" class="gaiji" />`;
+		expect(failure(`<span class="notes">［＃${img}］</span><br />`)?.code).toBe(
+			'invalid-image'
+		);
+		expect(failure(`<ruby><rb>漢</rb><rt>${zw}</rt></ruby><br />`)?.code).toBe(
+			'unsupported-construct'
+		);
+		expect(
+			failure(`<ruby><rb>${zw}</rb><rt>かん</rt></ruby><br />`)?.code
+		).toBe('unsupported-construct');
+	});
+
 	it('説明のない外字は、注記・底本情報でも文字を消さずに失敗させる', () => {
 		const bare = '<img src="../../../gaiji/1-87/1-87-71.png" class="gaiji" />';
 		expect(
@@ -750,7 +764,7 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 	});
 
 	it('本文の外字も、空白だけの説明を失敗にする', () => {
-		for (const alt of ['　', ' ', '  ']) {
+		for (const alt of ['　', ' ', '  ', '\u200b', '\u2060\u200c', '\ufeff']) {
 			expect(
 				failure(
 					`<img src="../../../gaiji/a.png" alt="${alt}" class="gaiji" /><br />`
