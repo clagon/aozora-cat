@@ -76,7 +76,7 @@ function valid() {
 					{
 						kind: 'image',
 						image: {
-							url: 'https://www.aozora.gr.jp/cards/000462/files/fig462_01.png'
+							url: 'https://www.aozora.gr.jp/cards/000879/files/fig92_02.png'
 						},
 						alt: '数式',
 						size: { width: 44, height: 43 }
@@ -89,7 +89,7 @@ function valid() {
 				kind: 'figure',
 				id: 'p4',
 				image: {
-					url: 'https://www.aozora.gr.jp/cards/001317/files/fig1317_01.png'
+					url: 'https://www.aozora.gr.jp/cards/000879/files/fig92_01.png'
 				},
 				alt: '',
 				size: { width: 198, height: 198 },
@@ -190,6 +190,35 @@ describe('parseWork', () => {
 			''
 		];
 		for (const url of bad) rejects('blocks[4].image.url', url);
+	});
+
+	it('挿絵は作品の files ディレクトリのものだけを許し、外字は /gaiji/ だけを許す', () => {
+		const other = 'https://www.aozora.gr.jp/cards/000148/files/fig773_01.png';
+		const notImage = 'https://www.aozora.gr.jp/cards/000879/not-an-image.png';
+		const nested = 'https://www.aozora.gr.jp/cards/000879/files/a/b.png';
+		const gaijiAsPicture = 'https://www.aozora.gr.jp/gaiji/1-84/1-84-77.png';
+		for (const url of [other, notImage, nested, gaijiAsPicture]) {
+			rejects('blocks[4].image.url', url);
+			rejects('blocks[2].inline[7].image.url', url);
+		}
+		// 挿絵のキャプションや装飾の中の画像も同じ規則で調べる。
+		const foreign = {
+			kind: 'image',
+			alt: '',
+			size: { width: 1, height: 1 },
+			image: { url: other }
+		};
+		rejects('blocks[4].caption', [foreign], '$.blocks[4].caption[0].image.url');
+		rejects(
+			'blocks[2].inline[2].children',
+			[{ kind: 'strong', children: [foreign] }],
+			'$.blocks[2].inline[2].children[0].children[0].image.url'
+		);
+		// 外字の画像に挿絵のファイルは使えない。
+		rejects(
+			'blocks[2].inline[1].base[0].image.url',
+			'https://www.aozora.gr.jp/cards/000879/files/x.png'
+		);
 	});
 
 	it('出典のURLは図書カードとファイルの場所だけを許す', () => {

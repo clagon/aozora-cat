@@ -259,11 +259,14 @@ function aozoraUrl(
 	return raw;
 }
 
-const IMAGE_PATH = /^\/(?:cards|gaiji)\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
+/** 外字は全作品で共有する /gaiji/ 配下、挿絵は作品の files ディレクトリ配下だけを許す。 */
+const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
+const CARD_IMAGE =
+	/^\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|gif)$/;
 
-function imageRef(v: unknown, path: string): ImageRef {
+function imageRef(v: unknown, path: string, pathname: RegExp): ImageRef {
 	const r = rec(v, path, ['url']);
-	return { url: aozoraUrl(r, 'url', path, IMAGE_PATH) };
+	return { url: aozoraUrl(r, 'url', path, pathname) };
 }
 
 function imageSize(v: unknown, path: string): ImageSize {
@@ -339,14 +342,14 @@ function inline(
 		return {
 			kind,
 			description: str(r, 'description', path),
-			image: imageRef(r.image, `${path}.image`)
+			image: imageRef(r.image, `${path}.image`, GAIJI_IMAGE)
 		};
 	}
 	if (kind === 'image') {
 		const r = rec(v, path, ['kind', 'image', 'alt', 'size']);
 		return {
 			kind,
-			image: imageRef(r.image, `${path}.image`),
+			image: imageRef(r.image, `${path}.image`, CARD_IMAGE),
 			alt: str(r, 'alt', path, true),
 			size: imageSize(r.size, `${path}.size`)
 		};
@@ -413,7 +416,7 @@ function block(v: unknown, path: string): Block {
 		return {
 			kind,
 			id: str(r, 'id', path),
-			image: imageRef(r.image, `${path}.image`),
+			image: imageRef(r.image, `${path}.image`, CARD_IMAGE),
 			alt: str(r, 'alt', path, true),
 			size: imageSize(r.size, `${path}.size`),
 			caption: inlines(r, 'caption')
@@ -529,6 +532,32 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 	};
 }
 
+/** 挿絵が、この作品の出典と同じ人物ディレクトリのファイルであることを確かめる。 */
+function checkIllustrations(blocks: Block[], person: string) {
+	const visit = (url: string, path: string) => {
+		const dir = CARD_IMAGE.exec(new URL(url).pathname)?.[1];
+		if (dir !== person)
+			throw new Invalid(path, 'この作品のファイルではない画像です');
+	};
+	const walk = (nodes: Inline[], path: string) => {
+		nodes.forEach((n, i) => {
+			const p = `${path}[${i}]`;
+			if (n.kind === 'image') visit(n.image.url, `${p}.image.url`);
+			else if (n.kind === 'ruby') walk(n.base, `${p}.base`);
+			else if ('children' in n) walk(n.children, `${p}.children`);
+		});
+	};
+	blocks.forEach((b, i) => {
+		const p = `$.blocks[${i}]`;
+		if (b.kind === 'figure') {
+			visit(b.image.url, `${p}.image.url`);
+			walk(b.caption, `${p}.caption`);
+		} else if (b.kind === 'paragraph' || b.kind === 'heading') {
+			walk(b.inline, `${p}.inline`);
+		}
+	});
+}
+
 /**
  * 直列化された作品を検証し、型付きの新しいオブジェクトとして返す。
  * 未知の項目・種別・将来のバージョン・許可外のURLは拒否する。
@@ -574,6 +603,10 @@ export function parseWork(input: unknown): WorkResult {
 			provenance: provenance(r.provenance, '$.provenance', id),
 			blocks
 		};
+		const dir = /^\/cards\/(\d{6})\//.exec(
+			new URL(work.provenance.source.fileUrl).pathname
+		)?.[1];
+		checkIllustrations(blocks, dir ?? '');
 		for (const key of [
 			'titleReading',
 			'subtitle',
