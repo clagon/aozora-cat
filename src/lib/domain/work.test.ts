@@ -57,6 +57,7 @@ function valid() {
 						]
 					},
 					{ kind: 'warichu', children: [{ kind: 'text', text: '割注' }] },
+					{ kind: 'tcy', children: [{ kind: 'text', text: '12' }] },
 					{
 						kind: 'size',
 						direction: 'larger',
@@ -227,7 +228,7 @@ describe('parseWork', () => {
 	});
 
 	it('大きな文字・小さな文字は1〜5段階だけを許す', () => {
-		const at = 'blocks[2].inline[4]';
+		const at = 'blocks[2].inline[5]';
 		rejects(`${at}.step`, 0);
 		rejects(`${at}.step`, 6);
 		rejects(`${at}.direction`, 'bigger');

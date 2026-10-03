@@ -11,9 +11,9 @@ export type ImageSize = { width: number; height: number };
 
 export type EmphasisStyle = 'sesame' | 'underline';
 
-/** 子を持つだけの装飾。strong=太字、frame=罫囲み、warichu=割注、horizontal=横組み。 */
+/** 子を持つだけの装飾。strong=太字、frame=罫囲み、warichu=割注、horizontal=横組み、tcy=縦中横。 */
 export type ContainerKind =
-	'strong' | 'frame' | 'warichu' | 'superscript' | 'horizontal';
+	'strong' | 'frame' | 'warichu' | 'superscript' | 'horizontal' | 'tcy';
 
 export type Inline =
 	| { kind: 'text'; text: string }
@@ -221,7 +221,8 @@ const CONTAINERS: readonly ContainerKind[] = [
 	'frame',
 	'warichu',
 	'superscript',
-	'horizontal'
+	'horizontal',
+	'tcy'
 ];
 
 function children(r: Rec, path: string, depth: number, inRuby: boolean) {
