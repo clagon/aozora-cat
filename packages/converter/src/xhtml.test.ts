@@ -745,10 +745,25 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('字下げなどの中のキャプションは、字下げを捨てずに失敗にする', () => {
+		for (const wrapper of [
+			'<div class="jisage_2" style="margin-left: 2em">',
+			'<div class="chitsuki_1" style="text-align:right; margin-right: 1em">',
+			'<div class="burasage" style="margin-left: 3em; text-indent: -1em;">'
+		])
+			expect(
+				failure(
+					`${fig('fig92_01.png')}<br />\n${wrapper}<span class="caption">題</span><br /></div>`
+				)?.code,
+				wrapper
+			).toBe('unsupported-construct');
+	});
+
 	it('文書の外枠（html・body）と head の実行につながるものも記録する', () => {
 		const r = convertXhtml(
 			page('x<br />')
 				.replace('<body>', '<body onload="a()">')
+				.replace('<head>', '<head onunload="c()">')
 				.replace(
 					'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja">',
 					'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" onclick="b()">'
@@ -761,7 +776,14 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 					.map((d) => d.message)
 					.join('\n')
 			: '';
-		for (const needle of ['onload', 'onclick', '<script>', '<link>', '<meta>'])
+		for (const needle of [
+			'onload',
+			'onclick',
+			'onunload',
+			'<script>',
+			'<link>',
+			'<meta>'
+		])
 			expect(messages, needle).toContain(needle);
 	});
 

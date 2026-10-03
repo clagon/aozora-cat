@@ -250,7 +250,10 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	// 文書の外枠（html・head・body）の属性と、取り込まない head の中の実行につながるものも記録する。
 	attrs(root ?? body, ['xmlns']);
 	for (const child of root?.childNodes.filter(isEl) ?? [])
-		if (child.tagName === 'head') scanActive(child);
+		if (child.tagName === 'head') {
+			attrs(child, []);
+			scanActive(child);
+		}
 	attrs(body, []);
 
 	const sections: Record<string, El> = {};
@@ -603,6 +606,13 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		line = [];
 		const [only] = drafts;
 		if (drafts.length === 1 && only.kind === 'caption') {
+			// 字下げの中のキャプションは、字下げを表せないので受け取らない。
+			if (layout.kind !== 'none')
+				fail(
+					'unsupported-construct',
+					'字下げなどの中のキャプションは扱えません',
+					at
+				);
 			const prev = blocks.at(-1);
 			if (prev?.kind !== 'figure' || prev.caption.length > 0)
 				fail('unsupported-construct', '挿絵に続かないキャプションです', at);
