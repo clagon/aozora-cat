@@ -247,6 +247,7 @@ describe('parseWork', () => {
 		for (const chars of [201, 1e100]) rejects('blocks[0].layout.chars', chars);
 		rejects('blocks[0].layout.chars', 1.5);
 		rejects('blocks[2].inline[0].text', '');
+		rejects('blocks[2].inline[1].base[0].description', '　');
 	});
 
 	it('挿絵のキャプションを残し、欠けているものを拒否する', () => {

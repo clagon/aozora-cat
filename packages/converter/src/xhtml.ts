@@ -212,16 +212,13 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		}
 	};
 
-	const body = doc.childNodes
-		.filter(isEl)
-		.find((e) => e.tagName === 'html')
-		?.childNodes.filter(isEl)
-		.find((e) => e.tagName === 'body');
+	const root = doc.childNodes.filter(isEl).find((e) => e.tagName === 'html');
+	const body = root?.childNodes.filter(isEl).find((e) => e.tagName === 'body');
 	if (!body)
 		throw new Failure('missing-section', 'body がありません', 'document');
 
 	// 再帰で読む前に、木の深さを数える。深く入れ子にした入力で例外にならないようにする。
-	const stack: [El, number][] = [[body, 1]];
+	const stack: [El, number][] = [[root ?? body, 1]];
 	for (let top = stack.pop(); top; top = stack.pop()) {
 		const [el, depth] = top;
 		if (depth > MAX_DOM_DEPTH)
@@ -249,6 +246,12 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			scanActive(child);
 		}
 	};
+
+	// 文書の外枠（html・head・body）の属性と、取り込まない head の中の実行につながるものも記録する。
+	attrs(root ?? body, ['xmlns']);
+	for (const child of root?.childNodes.filter(isEl) ?? [])
+		if (child.tagName === 'head') scanActive(child);
+	attrs(body, []);
 
 	const sections: Record<string, El> = {};
 	for (const node of body.childNodes) {
@@ -494,7 +497,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		if (cls === 'gaiji') {
 			attrs(el, ['class', 'src', 'alt']);
 			const description = attr(el, 'alt') ?? '';
-			if (description === '')
+			if (description.trim() === '')
 				fail('invalid-image', '外字の説明（alt）がありません', el);
 			return [{ kind: 'gaiji', description, image: { url: resolve(el) } }];
 		}

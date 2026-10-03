@@ -187,6 +187,14 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
+/** 空白だけではない文字列。外字の説明のように、見えない値では代わりにならないものに使う。 */
+function visible(r: Rec, key: string, path: string): string {
+	const v = str(r, key, path);
+	if (v.trim() === '')
+		throw new Invalid(`${path}.${key}`, '空白だけの文字列は使えません');
+	return v;
+}
+
 function int(
 	r: Rec,
 	key: string,
@@ -354,7 +362,7 @@ function inline(
 		const r = rec(v, path, ['kind', 'description', 'image']);
 		return {
 			kind,
-			description: str(r, 'description', path),
+			description: visible(r, 'description', path),
 			image: imageRef(r.image, `${path}.image`, GAIJI_IMAGE)
 		};
 	}

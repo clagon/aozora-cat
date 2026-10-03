@@ -734,6 +734,37 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('本文の外字も、空白だけの説明を失敗にする', () => {
+		for (const alt of ['　', ' ', '  ']) {
+			expect(
+				failure(
+					`<img src="../../../gaiji/a.png" alt="${alt}" class="gaiji" /><br />`
+				)?.code,
+				JSON.stringify(alt)
+			).toBe('invalid-image');
+		}
+	});
+
+	it('文書の外枠（html・body）と head の実行につながるものも記録する', () => {
+		const r = convertXhtml(
+			page('x<br />')
+				.replace('<body>', '<body onload="a()">')
+				.replace(
+					'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja">',
+					'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" onclick="b()">'
+				),
+			source
+		);
+		const messages = r.ok
+			? r.diagnostics
+					.filter((d) => d.code === 'active-content-removed')
+					.map((d) => d.message)
+					.join('\n')
+			: '';
+		for (const needle of ['onload', 'onclick', '<script>', '<link>', '<meta>'])
+			expect(messages, needle).toContain(needle);
+	});
+
 	it('取り込まないセクションの中の、実行につながる属性も記録する', () => {
 		const r = convertXhtml(
 			page('x<br />').replace(
