@@ -241,6 +241,23 @@ describe('parseWork', () => {
 			'provenance.source.fileUrl',
 			'https://www.aozora.gr.jp/cards/000148/files/92_14545.html'
 		);
+		// 安全な整数の範囲を超える人物IDでも、丸めずに別のディレクトリとして扱う。
+		const big = (n: string) => `https://www.aozora.gr.jp/cards/${n}`;
+		const crossed = change(
+			'provenance.source.cardUrl',
+			`${big('9007199254740992')}/card92.html`
+		);
+		const r = parseWork(
+			change(
+				'provenance.source.fileUrl',
+				`${big('9007199254740993')}/files/92_14545.html`,
+				crossed
+			)
+		);
+		expect(r).toMatchObject({
+			ok: false,
+			error: { path: '$.provenance.source.fileUrl' }
+		});
 		// 先頭のゼロの有無は同じ作品として扱う。
 		const ok = parseWork(
 			change(

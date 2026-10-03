@@ -435,18 +435,21 @@ function validDate(s: string): boolean {
 }
 
 /** 図書カードとファイルの URL が、この作品のものであることを確かめ、人物ディレクトリも返す。 */
+/** 先頭のゼロを除いた数字列。桁数の大きい値でも丸めず、文字列のまま比べるために使う。 */
+const canon = (digits: string) => digits.replace(/^0+(?=\d)/, '');
+
 function ownUrl(
 	r: Rec,
 	key: string,
 	path: string,
 	pathname: RegExp,
 	workId: string
-): { url: string; person: number } {
+): { url: string; person: string } {
 	const url = aozoraUrl(r, key, path, pathname);
 	const [, person, number] = pathname.exec(new URL(url).pathname) ?? [];
-	if (number === undefined || Number(number) !== Number(workId))
+	if (number === undefined || canon(number) !== canon(workId))
 		throw new Invalid(`${path}.${key}`, '作品IDと異なる作品のURLです');
-	return { url, person: Number(person) };
+	return { url, person: canon(person ?? '') };
 }
 
 function provenance(v: unknown, path: string, workId: string): Provenance {
