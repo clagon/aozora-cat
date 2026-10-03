@@ -203,6 +203,12 @@ describe('parseWork', () => {
 		rejects('people', []);
 		rejects('people[0].role', 'illustrator');
 		rejects('blocks[4].size.width', 0);
+		for (const side of [1e100, 10001, Number.MAX_SAFE_INTEGER + 2, -1, 'x']) {
+			rejects('blocks[4].size.width', side);
+			rejects('blocks[4].size.height', side);
+			rejects('blocks[2].inline[7].size.width', side);
+		}
+		for (const chars of [201, 1e100]) rejects('blocks[0].layout.chars', chars);
 		rejects('blocks[0].layout.chars', 1.5);
 		rejects('blocks[2].inline[0].text', '');
 	});

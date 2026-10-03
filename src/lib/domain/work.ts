@@ -123,6 +123,10 @@ class Invalid extends Error {
 }
 
 const MAX_DEPTH = 8;
+/** 画像の幅・高さ（px）の上限。これを超える宣言は、縦横比の異常として拒否する。 */
+const MAX_IMAGE_SIDE = 10000;
+/** 字下げ・地付き・ぶら下げの字数の上限。 */
+const MAX_LAYOUT_CHARS = 200;
 const AOZORA_HOST = 'www.aozora.gr.jp';
 
 function isRec(v: unknown): v is Rec {
@@ -145,10 +149,16 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
-function int(r: Rec, key: string, path: string, min: number): number {
+function int(
+	r: Rec,
+	key: string,
+	path: string,
+	min: number,
+	max: number
+): number {
 	const v = r[key];
-	if (typeof v !== 'number' || !Number.isInteger(v) || v < min)
-		throw new Invalid(`${path}.${key}`, `${min}以上の整数が必要です`);
+	if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min || v > max)
+		throw new Invalid(`${path}.${key}`, `${min}以上${max}以下の整数が必要です`);
 	return v;
 }
 
@@ -220,7 +230,10 @@ function imageRef(v: unknown, path: string): ImageRef {
 
 function imageSize(v: unknown, path: string): ImageSize {
 	const r = rec(v, path, ['width', 'height']);
-	return { width: int(r, 'width', path, 1), height: int(r, 'height', path, 1) };
+	return {
+		width: int(r, 'width', path, 1, MAX_IMAGE_SIDE),
+		height: int(r, 'height', path, 1, MAX_IMAGE_SIDE)
+	};
 }
 
 const CONTAINERS: readonly ContainerKind[] = [
@@ -268,8 +281,7 @@ function inline(
 	}
 	if (kind === 'size') {
 		const r = rec(v, path, ['kind', 'direction', 'step', 'children']);
-		const step = int(r, 'step', path, 1);
-		if (step > 5) throw new Invalid(`${path}.step`, '段階は5以下です');
+		const step = int(r, 'step', path, 1, 5);
 		return {
 			kind,
 			direction: oneOf(r, 'direction', path, ['larger', 'smaller']),
@@ -315,18 +327,18 @@ function layout(v: unknown, path: string): Layout {
 	}
 	if (kind === 'indent') {
 		const r = rec(v, path, ['kind', 'chars']);
-		return { kind, chars: int(r, 'chars', path, 1) };
+		return { kind, chars: int(r, 'chars', path, 1, MAX_LAYOUT_CHARS) };
 	}
 	if (kind === 'end') {
 		const r = rec(v, path, ['kind', 'inset']);
-		return { kind, inset: int(r, 'inset', path, 0) };
+		return { kind, inset: int(r, 'inset', path, 0, MAX_LAYOUT_CHARS) };
 	}
 	if (kind === 'hanging') {
 		const r = rec(v, path, ['kind', 'indent', 'first']);
 		return {
 			kind,
-			indent: int(r, 'indent', path, 1),
-			first: int(r, 'first', path, 0)
+			indent: int(r, 'indent', path, 1, MAX_LAYOUT_CHARS),
+			first: int(r, 'first', path, 0, MAX_LAYOUT_CHARS)
 		};
 	}
 	throw new Invalid(`${path}.kind`, '未知の配置種別です');
