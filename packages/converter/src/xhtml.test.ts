@@ -693,6 +693,28 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('セクションの外枠の実行につながる属性も記録する', () => {
+		const withAttrs = page('x<br />')
+			.replace(
+				'<div class="main_text">',
+				'<div class="main_text" onclick="a()">'
+			)
+			.replace(
+				'<div class="bibliographical_information">',
+				'<div class="bibliographical_information" onmouseover="b()" title="t">'
+			);
+		const r = convertXhtml(withAttrs, source);
+		expect(r.ok).toBe(true);
+		const messages = r.ok ? r.diagnostics.map((d) => d.message).join('\n') : '';
+		for (const name of ['onclick', 'onmouseover', 'title'])
+			expect(messages, name).toContain(name);
+		// 公式のファイルにある定型の属性は、記録しない。
+		const plain = convertXhtml(page('x<br />'), source);
+		expect(
+			plain.ok && plain.diagnostics.some((d) => d.code === 'attribute-dropped')
+		).toBe(false);
+	});
+
 	it('底本情報の罫線は行の区切りで、前後の記載事項を連結しない', () => {
 		const r = convertXhtml(
 			page('x<br />', '', '<hr />底本：A<hr />入力：B<br />校正：C'),

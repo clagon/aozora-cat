@@ -247,6 +247,9 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			continue;
 		}
 		const cls = attr(node, 'class');
+		// セクションの外枠の属性も、中身と同じ規則で検査して記録する。
+		if (node.tagName === 'div')
+			attrs(node, attr(node, 'id') === 'contents' ? ['style'] : ['class']);
 		if (node.tagName === 'div' && cls === 'main_text') {
 			if (sections.main)
 				fail('unsupported-construct', '本文が複数あります', node);
