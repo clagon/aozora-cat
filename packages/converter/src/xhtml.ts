@@ -503,7 +503,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		return [{ kind: 'ruby', base, reading }];
 	}
 
-	function image(el: El, inRuby: boolean): Draft[] {
+	function image(el: El): Draft[] {
 		const cls = attr(el, 'class');
 		if (cls === 'gaiji') {
 			attrs(el, ['class', 'src', 'alt']);
@@ -513,8 +513,6 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			return [{ kind: 'gaiji', description, image: { url: resolve(el) } }];
 		}
 		if (cls === 'illustration') {
-			if (inRuby)
-				fail('unsupported-construct', 'ルビの親文字に挿絵は置けません', el);
 			attrs(el, ['class', 'src', 'alt', 'width', 'height']);
 			return [
 				{
@@ -564,7 +562,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				return container(el, kind, inRuby);
 			}
 			case 'img':
-				return image(el, inRuby);
+				return image(el);
 			case 'a':
 				// リンクは外へ出さない。文字だけを残す。
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', el);

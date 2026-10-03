@@ -763,11 +763,16 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
-	it('ルビの親文字の挿絵と、html・body のないファイルを失敗にする', () => {
-		expect(
-			failure(`<ruby><rb>${fig('fig92_01.png')}</rb><rt>かん</rt></ruby><br />`)
-				?.code
-		).toBe('unsupported-construct');
+	it('ルビの親文字に字形の画像があるものは、画像のまま残す（実際の作品にある）', () => {
+		const { work } = ok(
+			`<ruby><rb>${fig('fig92_01.png', 18, 23)}</rb><rp>（</rp><rt>ラン</rt><rp>）</rp></ruby><br />`
+		);
+		expect(work.blocks[0]).toMatchObject({
+			inline: [{ kind: 'ruby', base: [{ kind: 'image' }], reading: 'ラン' }]
+		});
+	});
+
+	it('html・body のないファイルを失敗にする', () => {
 		const noBody = page('x<br />').replace('<body>', '').replace('</body>', '');
 		expect(convertXhtml(noBody, source)).toMatchObject({
 			ok: false,

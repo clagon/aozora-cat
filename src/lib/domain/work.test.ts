@@ -422,18 +422,15 @@ describe('parseWork', () => {
 		}
 	});
 
-	it('ルビの親文字に挿絵（image）を入れられない', () => {
+	it('ルビの親文字に字形の画像（image）を入れられる', () => {
 		const image = {
 			kind: 'image',
-			alt: '',
-			size: { width: 1, height: 1 },
+			alt: '梵字',
+			size: { width: 18, height: 23 },
 			image: { url: 'https://www.aozora.gr.jp/cards/000879/files/fig92_01.png' }
 		};
-		rejects(
-			'blocks[2].inline[1].base[2]',
-			image,
-			'$.blocks[2].inline[1].base[2]'
-		);
+		const doc = change('blocks[2].inline[1].base', [image]);
+		expect(parseWork(doc).ok).toBe(true);
 	});
 
 	it('深すぎる入れ子を拒否する', () => {

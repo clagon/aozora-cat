@@ -44,7 +44,7 @@ export type ContainerKind =
 
 export type Inline =
 	| { kind: 'text'; text: string }
-	/** 親文字の中にルビは入れない。外字や装飾は入れてよい。 */
+	/** 親文字の中にルビは入れない。外字・装飾・字形の画像は入れてよい。 */
 	| { kind: 'ruby'; base: Inline[]; reading: string }
 	/** side は縦組みでの付く側。right が通常、left が「の左に」の注記。 */
 	| {
@@ -392,7 +392,6 @@ function inline(
 		};
 	}
 	if (kind === 'image') {
-		if (inRuby) throw new Invalid(path, 'ルビの親文字に挿絵は入れられません');
 		const r = rec(v, path, ['kind', 'image', 'alt', 'size']);
 		return {
 			kind,
