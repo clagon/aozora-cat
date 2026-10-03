@@ -57,6 +57,12 @@ function valid() {
 						]
 					},
 					{ kind: 'warichu', children: [{ kind: 'text', text: '割注' }] },
+					{
+						kind: 'size',
+						direction: 'larger',
+						step: 2,
+						children: [{ kind: 'text', text: '大' }]
+					},
 					{ kind: 'note', text: '［＃「甍の」は底本では「薨の」］' },
 					{
 						kind: 'image',
@@ -218,6 +224,13 @@ describe('parseWork', () => {
 			)
 		);
 		expect(ok.ok).toBe(true);
+	});
+
+	it('大きな文字・小さな文字は1〜5段階だけを許す', () => {
+		const at = 'blocks[2].inline[4]';
+		rejects(`${at}.step`, 0);
+		rejects(`${at}.step`, 6);
+		rejects(`${at}.direction`, 'bigger');
 	});
 
 	it('block の id の重複を拒否する', () => {

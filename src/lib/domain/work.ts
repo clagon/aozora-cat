@@ -21,6 +21,13 @@ export type Inline =
 	| { kind: 'ruby'; base: Inline[]; reading: string }
 	| { kind: 'emphasis'; style: EmphasisStyle; children: Inline[] }
 	| { kind: ContainerKind; children: Inline[] }
+	/** 大きな文字・小さな文字。step は上流の段階（1〜5）。行の幅が変わるのでページ境界に影響する。 */
+	| {
+			kind: 'size';
+			direction: 'larger' | 'smaller';
+			step: number;
+			children: Inline[];
+	  }
 	| { kind: 'gaiji'; description: string; image: ImageRef }
 	| {
 			kind: 'image';
@@ -248,6 +255,17 @@ function inline(
 		return {
 			kind,
 			style: oneOf(r, 'style', path, ['sesame', 'underline']),
+			children: children(r, path, depth, inRuby)
+		};
+	}
+	if (kind === 'size') {
+		const r = rec(v, path, ['kind', 'direction', 'step', 'children']);
+		const step = int(r, 'step', path, 1);
+		if (step > 5) throw new Invalid(`${path}.step`, '段階は5以下です');
+		return {
+			kind,
+			direction: oneOf(r, 'direction', path, ['larger', 'smaller']),
+			step,
 			children: children(r, path, depth, inRuby)
 		};
 	}
