@@ -1,0 +1,51 @@
+[
+	{
+		"id": "kumo-no-ito",
+		"workId": "000092",
+		"url": "https://www.aozora.gr.jp/cards/000879/files/92_14545.html",
+		"from": 0,
+		"count": 400
+	},
+	{
+		"id": "kokoro",
+		"workId": "000773",
+		"url": "https://www.aozora.gr.jp/cards/000148/files/773_14560.html",
+		"from": 0,
+		"count": 260
+	},
+	{
+		"id": "ginga-tetsudo",
+		"workId": "043737",
+		"url": "https://www.aozora.gr.jp/cards/000081/files/43737_19215.html",
+		"from": 0,
+		"count": 140
+	},
+	{
+		"id": "rashomon-old",
+		"workId": "000128",
+		"url": "https://www.aozora.gr.jp/cards/000879/files/128_15261.html",
+		"from": 0,
+		"count": 400
+	},
+	{
+		"id": "kuroshikan",
+		"workId": "001317",
+		"url": "https://www.aozora.gr.jp/cards/000125/files/1317_23268.html",
+		"from": 60,
+		"count": 140
+	},
+	{
+		"id": "aki-no-hitomi",
+		"workId": "000011",
+		"url": "https://www.aozora.gr.jp/cards/000013/files/11_20062.html",
+		"from": 0,
+		"count": 120
+	},
+	{
+		"id": "kaze-no-matasaburo",
+		"workId": "000462",
+		"url": "https://www.aozora.gr.jp/cards/000081/files/462_15405.html",
+		"from": 100,
+		"count": 80
+	}
+]

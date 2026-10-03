@@ -8,6 +8,7 @@
 
 ## Status
 
+- **Status**: IN PROGRESS: real-device acceptance pending (see `docs/decisions/vertical-pagination.md`)
 - **Priority**: P1
 - **Effort**: L
 - **Risk**: HIGH
@@ -77,11 +78,12 @@ the decision document contains explicit acceptance results for both platforms.
 
 ## Done criteria
 
-- [ ] One approach passes the agreed WebKit and Chromium matrix.
-- [ ] No content is skipped, duplicated, or reordered in fixtures.
-- [ ] A production-facing API contract is documented without production code.
-- [ ] Beginner-work candidates are ready for human approval.
-- [ ] Global checks pass.
+- [x] One approach (CSS columns) passes the agreed WebKit and Chromium matrix.
+- [x] No content is skipped, duplicated, or reordered in fixtures.
+- [x] A production-facing API contract is documented without production code.
+- [x] Beginner-work candidates are ready for human approval (`docs/editorial/first-readers.md`).
+- [x] Global checks pass.
+- [ ] iPhone Safari and Android Chrome acceptance results are recorded (no device access in the executing environment).
 
 ## STOP conditions
 

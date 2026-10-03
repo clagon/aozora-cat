@@ -5,3 +5,4 @@ pnpm-lock.yaml
 plans
 test-results
 playwright-report
+tests/fixtures/reader

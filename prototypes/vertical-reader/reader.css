@@ -1,0 +1,196 @@
+/* Plan 003 の使い捨てスタイル。本番のトークンは src/lib/ui/tokens.css を参照する。 */
+html,
+body {
+	margin: 0;
+	height: 100%;
+	background: var(--color-background);
+	color: var(--color-text);
+}
+
+#viewport {
+	position: fixed;
+	inset: 0;
+	/* 横方向のドラッグはページ送りに使うため、ブラウザへ渡さない。縦のスクロールだけ許す。 */
+	touch-action: pan-y;
+	box-sizing: border-box;
+	/* viewport-fit=cover でもノッチやホームインジケータに本文が重ならないよう、安全領域つきの余白を使う。 */
+	padding: var(--content-padding-top) var(--content-padding-right)
+		var(--content-padding-bottom) var(--content-padding-left);
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-touch-callout: none;
+	outline: none;
+}
+
+#viewport:focus-visible {
+	outline: var(--focus-ring-width) var(--focus-ring-style) var(--color-focus);
+	outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.stage {
+	position: absolute;
+	overflow: hidden;
+	background: var(--color-background);
+}
+
+.flow {
+	font-family: var(--font-reading);
+	line-height: 2;
+	margin: 0;
+	padding: 0;
+	overflow-wrap: anywhere;
+	line-break: strict;
+	transition: transform var(--motion-duration-standard) var(--motion-ease);
+}
+
+/* 縦書き。行（ブロック）は右から左へ積まれる。 */
+.flow[data-mode='vertical'] {
+	writing-mode: vertical-rl;
+	text-orientation: mixed;
+	height: var(--page-h);
+}
+
+.flow[data-mode='vertical'][data-approach='columns'] {
+	width: var(--page-w);
+	column-width: var(--page-h);
+	column-gap: 0;
+	column-fill: auto;
+}
+
+/* 横書き。ページ送りはせず、縦スクロールで読む。 */
+.flow[data-mode='horizontal'] {
+	writing-mode: horizontal-tb;
+	width: var(--page-w);
+}
+
+.flow p,
+.flow h2 {
+	margin: 0;
+	font-size: inherit;
+	font-weight: inherit;
+}
+
+.flow h2 {
+	font-weight: bold;
+}
+
+.flow p[data-blank]::before {
+	content: '\200b';
+}
+
+.flow ruby {
+	ruby-position: over;
+}
+
+.flow rt {
+	font-size: 0.5em;
+}
+
+.flow em.sesame_dot {
+	font-style: normal;
+	text-emphasis: filled sesame;
+}
+
+.flow .big {
+	font-size: 1.5em;
+}
+
+.flow .small {
+	font-size: 0.8em;
+}
+
+.flow .tcy {
+	text-combine-upright: all;
+}
+
+.flow img.gaiji {
+	width: 1em;
+	height: 1em;
+	/* middle/top は行内の字位置を数 px ずらし、行端の文字がページ境界へはみ出す。 */
+	vertical-align: baseline;
+}
+
+.flow p:not([data-image]) > img.illustration {
+	width: 1.5em;
+	height: auto;
+	vertical-align: baseline;
+}
+
+.flow p[data-image] > img.illustration {
+	display: block;
+	height: auto;
+	max-width: var(--page-w);
+	max-height: var(--page-h);
+}
+
+.flow p[data-image] {
+	break-inside: avoid;
+}
+
+.flow ruby,
+.flow img {
+	break-inside: avoid;
+}
+
+/* 字下げ（--indent）は行頭側、地付き（--inset）は行末側へ寄せる。縦書きでは行頭が上。 */
+.flow [style*='--indent'] {
+	padding-inline-start: calc(var(--indent) * 1em);
+}
+
+.flow [data-align='end'] {
+	text-align: end;
+	padding-inline-end: calc(var(--inset) * 1em);
+}
+
+.flow hr[data-page-break] {
+	display: block;
+	border: 0;
+	margin: 0;
+	padding: 0;
+	block-size: 0;
+	break-after: column;
+}
+
+.flow .pad {
+	display: block;
+}
+
+#chrome {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 16px;
+	padding: var(--content-padding-top) var(--content-padding-right) 8px
+		var(--content-padding-left);
+	background: var(--color-surface);
+	color: var(--color-text);
+	font-family: var(--font-ui);
+	font-size: 14px;
+}
+
+#chrome[hidden] {
+	display: none;
+}
+
+#chrome [role='group'] {
+	display: flex;
+	gap: 4px;
+}
+
+#chrome button {
+	min-width: var(--tap-target-min);
+	min-height: var(--tap-target-min);
+	border: 1px solid var(--color-border);
+	background: var(--color-background);
+	color: var(--color-text);
+	font: inherit;
+}
+
+#chrome button[aria-pressed='true'] {
+	border-color: var(--color-focus);
+	outline: 2px solid var(--color-focus);
+}

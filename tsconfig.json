@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"allowJs": true,
 		"checkJs": true,
+		"allowImportingTsExtensions": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
@@ -11,5 +12,10 @@
 		"strict": true,
 		"moduleResolution": "bundler"
 	},
-	"include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts"]
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"tests/**/*.ts",
+		"prototypes/**/*.ts"
+	]
 }
