@@ -16,6 +16,7 @@
 		"src/**/*.ts",
 		"src/**/*.svelte",
 		"tests/**/*.ts",
-		"prototypes/**/*.ts"
+		"prototypes/**/*.ts",
+		"packages/**/*.ts"
 	]
 }

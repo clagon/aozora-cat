@@ -110,6 +110,11 @@ constructs below until a fixture requires them and a schema decision is made:
   character-size ranges), which need a wrapper or range marker over blocks.
 - Window headings and inline headings (同行見出し・窓見出し), which change how
   the surrounding text flows and need a heading form independent of its level.
+- Character-width ranges (`jizume_N`), block-form captions (`div.caption`),
+  italic (`span.shatai`), and ruby readings that contain images. Checked
+  against the official XHTML: only 黒死館殺人事件 (No. 1317) among the approved
+  works uses a deferred construct (`div.yokogumi`), so its full text fails to
+  convert until that is decided; the other six convert in full.
 - Any other construct from the official annotation guide not listed in the
   approved fixtures (for example 返り点 and 訓点送り仮名).
 - Per-work image ownership beyond the person directory. The schema only

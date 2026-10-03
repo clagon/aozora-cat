@@ -44,7 +44,7 @@ export type ContainerKind =
 
 export type Inline =
 	| { kind: 'text'; text: string }
-	/** 親文字の中にルビは入れない。外字や装飾は入れてよい。 */
+	/** 親文字の中にルビは入れない。外字・装飾・字形の画像は入れてよい。 */
 	| { kind: 'ruby'; base: Inline[]; reading: string }
 	/** side は縦組みでの付く側。right が通常、left が「の左に」の注記。 */
 	| {
@@ -187,6 +187,35 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
+/** 描画される文字がないか。空白に加えて、幅のない書式文字（U+200B など）、制御文字、異体字selectorなど表示されない文字だけの場合も真。 */
+export function isBlank(s: string): boolean {
+	return (
+		s.replace(
+			/[\p{White_Space}\p{Cf}\p{Cc}\p{Default_Ignorable_Code_Point}]/gu,
+			''
+		) === ''
+	);
+}
+
+/** 見える文字（または外字・画像）を含むか。装飾の中も調べる。注記は表示しないので数えない。 */
+export function hasVisible(nodes: Inline[]): boolean {
+	return nodes.some((n) => {
+		if (n.kind === 'text') return !isBlank(n.text);
+		if (n.kind === 'note') return false;
+		if (n.kind === 'gaiji' || n.kind === 'image') return true;
+		if (n.kind === 'ruby') return hasVisible(n.base);
+		return hasVisible(n.children);
+	});
+}
+
+/** 空白だけではない文字列。外字の説明のように、見えない値では代わりにならないものに使う。 */
+function visible(r: Rec, key: string, path: string): string {
+	const v = str(r, key, path);
+	if (isBlank(v))
+		throw new Invalid(`${path}.${key}`, '空白だけの文字列は使えません');
+	return v;
+}
+
 function int(
 	r: Rec,
 	key: string,
@@ -267,6 +296,16 @@ const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
 const CARD_IMAGE =
 	/^\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|gif)$/;
 
+/** 外字の画像のURLとして許可できるか。変換器が、文字へ平らにする外字を確かめるときに使う。 */
+export function isGaijiImageUrl(url: string): boolean {
+	try {
+		aozoraUrl({ url }, 'url', '', GAIJI_IMAGE);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function imageRef(v: unknown, path: string, pathname: RegExp): ImageRef {
 	const r = rec(v, path, ['url']);
 	return { url: aozoraUrl(r, 'url', path, pathname) };
@@ -310,10 +349,14 @@ function inline(
 	if (kind === 'ruby') {
 		if (inRuby) throw new Invalid(path, 'ルビの親文字にルビは入れられません');
 		const r = rec(v, path, ['kind', 'base', 'reading']);
+		const base = list(r, 'base', path, (b, p) => inline(b, p, depth + 1, true));
+		// 親文字が空白だけでは、ルビを付ける対象がない。
+		if (!hasVisible(base))
+			throw new Invalid(`${path}.base`, '親文字に見える文字がありません');
 		return {
 			kind,
-			base: list(r, 'base', path, (b, p) => inline(b, p, depth + 1, true)),
-			reading: str(r, 'reading', path)
+			base,
+			reading: visible(r, 'reading', path)
 		};
 	}
 	if (kind === 'emphasis') {
@@ -344,7 +387,7 @@ function inline(
 		const r = rec(v, path, ['kind', 'description', 'image']);
 		return {
 			kind,
-			description: str(r, 'description', path),
+			description: visible(r, 'description', path),
 			image: imageRef(r.image, `${path}.image`, GAIJI_IMAGE)
 		};
 	}
@@ -528,8 +571,8 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 		},
 		converter: { version, path: via },
 		bibliography: list(r, 'bibliography', path, (line, p) => {
-			if (typeof line !== 'string' || line === '')
-				throw new Invalid(p, '空でない文字列が必要です');
+			if (typeof line !== 'string' || isBlank(line))
+				throw new Invalid(p, '見える文字のある文字列が必要です');
 			return line;
 		})
 	};

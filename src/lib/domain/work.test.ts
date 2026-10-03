@@ -151,6 +151,16 @@ describe('parseWork', () => {
 		rejects('provenance', REMOVE);
 		rejects('provenance.source', REMOVE);
 		rejects('provenance.bibliography', []);
+		rejects(
+			'provenance.bibliography',
+			['\u200b'],
+			'$.provenance.bibliography[0]'
+		);
+		rejects(
+			'provenance.bibliography',
+			['底本', '　'],
+			'$.provenance.bibliography[1]'
+		);
 		rejects('provenance.converter.path', REMOVE);
 	});
 
@@ -247,6 +257,30 @@ describe('parseWork', () => {
 		for (const chars of [201, 1e100]) rejects('blocks[0].layout.chars', chars);
 		rejects('blocks[0].layout.chars', 1.5);
 		rejects('blocks[2].inline[0].text', '');
+		rejects('blocks[2].inline[1].base[0].description', '　');
+		rejects('blocks[2].inline[1].reading', '　');
+		for (const zw of [
+			'\u200b',
+			'\u2060\u200c',
+			'\ufeff',
+			'\ufe0f',
+			'\u034f',
+			'\u180b',
+			'\u3164'
+		]) {
+			rejects('blocks[2].inline[1].reading', zw);
+			rejects('blocks[2].inline[1].base[0].description', zw);
+		}
+		rejects(
+			'blocks[2].inline[1].base',
+			[{ kind: 'strong', children: [{ kind: 'text', text: ' ' }] }],
+			'$.blocks[2].inline[1].base'
+		);
+		rejects(
+			'blocks[2].inline[1].base',
+			[{ kind: 'text', text: ' ' }],
+			'$.blocks[2].inline[1].base'
+		);
 	});
 
 	it('挿絵のキャプションを残し、欠けているものを拒否する', () => {
@@ -396,6 +430,17 @@ describe('parseWork', () => {
 				error: { path: errorPath }
 			});
 		}
+	});
+
+	it('ルビの親文字に字形の画像（image）を入れられる', () => {
+		const image = {
+			kind: 'image',
+			alt: '梵字',
+			size: { width: 18, height: 23 },
+			image: { url: 'https://www.aozora.gr.jp/cards/000879/files/fig92_01.png' }
+		};
+		const doc = change('blocks[2].inline[1].base', [image]);
+		expect(parseWork(doc).ok).toBe(true);
 	});
 
 	it('深すぎる入れ子を拒否する', () => {
