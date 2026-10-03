@@ -96,7 +96,8 @@ function valid() {
 				id: 'p5',
 				layout: { kind: 'end', inset: 1 },
 				inline: []
-			}
+			},
+			{ kind: 'pageCenter' }
 		]
 	};
 }
@@ -164,6 +165,7 @@ describe('parseWork', () => {
 	it('想定していない項目（生のHTMLなど）を拒否する', () => {
 		rejects('blocks[2].inline[0].html', '<b>x</b>');
 		rejects('extra', 1);
+		rejects('blocks[6].style', 'center');
 	});
 
 	it('許可していない画像の参照を拒否する', () => {

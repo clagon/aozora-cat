@@ -69,6 +69,8 @@ export type Block =
 			size: ImageSize;
 			caption: Inline[];
 	  }
+	/** 次の改ページまでを、ページの左右中央に置く指示（［＃ページの左右中央］）。 */
+	| { kind: 'pageCenter' }
 	| { kind: 'pageBreak'; style: PageBreakStyle };
 
 export type PersonRole = 'author' | 'translator' | 'editor';
@@ -365,6 +367,10 @@ function block(v: unknown, path: string): Block {
 			caption: inlines(r, 'caption')
 		};
 	}
+	if (kind === 'pageCenter') {
+		rec(v, path, ['kind']);
+		return { kind };
+	}
 	if (kind === 'pageBreak') {
 		const r = rec(v, path, ['kind', 'style']);
 		return {
@@ -479,7 +485,7 @@ export function parseWork(input: unknown): WorkResult {
 		const blocks = list(r, 'blocks', '$', block);
 		const seen = new Set<string>();
 		blocks.forEach((b, i) => {
-			if (b.kind === 'pageBreak') return;
+			if (b.kind === 'pageBreak' || b.kind === 'pageCenter') return;
 			if (seen.has(b.id))
 				throw new Invalid(`$.blocks[${i}].id`, 'block の id が重複しています');
 			seen.add(b.id);
