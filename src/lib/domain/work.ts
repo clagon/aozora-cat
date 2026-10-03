@@ -505,6 +505,13 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 			`${sp}.fileUrl`,
 			'図書カードと異なる人物のディレクトリです'
 		);
+	const via = oneOf(converter, 'path', cp, ['xhtml', 'text']);
+	// xhtml は .html の変換元、text は .txt / .zip の変換元だけと組み合わせる。
+	if (file.url.endsWith('.html') !== (via === 'xhtml'))
+		throw new Invalid(
+			`${cp}.path`,
+			'変換経路が、変換元ファイルの形式と合いません'
+		);
 	return {
 		copyright: { work: 'なし' },
 		source: {
@@ -512,10 +519,7 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 			fileUrl: file.url,
 			upstreamUpdated
 		},
-		converter: {
-			version,
-			path: oneOf(converter, 'path', cp, ['xhtml', 'text'])
-		},
+		converter: { version, path: via },
 		bibliography: list(r, 'bibliography', path, (line, p) => {
 			if (typeof line !== 'string' || line === '')
 				throw new Invalid(p, '空でない文字列が必要です');

@@ -315,6 +315,24 @@ describe('parseWork', () => {
 		rejects('blocks[2].inline[2].style', 'sesame');
 	});
 
+	it('変換経路は変換元ファイルの形式と合うものだけを許す', () => {
+		const file = 'https://www.aozora.gr.jp/cards/000879/files/92_14545';
+		const text = change('provenance.source.fileUrl', `${file}.txt`);
+		// xhtml のまま .txt / .zip を変換元にしたものは拒否する。
+		expect(parseWork(text)).toMatchObject({
+			ok: false,
+			error: { path: '$.provenance.converter.path' }
+		});
+		for (const ext of ['txt', 'zip']) {
+			const doc = change('provenance.source.fileUrl', `${file}.${ext}`);
+			expect(
+				parseWork(change('provenance.converter.path', 'text', doc)).ok
+			).toBe(true);
+		}
+		// text のまま .html を変換元にしたものも拒否する。
+		rejects('provenance.converter.path', 'text');
+	});
+
 	it('block の id の重複を拒否する', () => {
 		rejects('blocks[4].id', 'p1');
 	});
