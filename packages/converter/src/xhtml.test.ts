@@ -693,6 +693,46 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('属性にだけ文字のある実行要素も、中身ごと捨てずに失敗にする', () => {
+		for (const el of [
+			'<form><input value="底本：本文" /></form>',
+			'<input value="底本：本文" />',
+			'<object><img src="a.png" alt="本文" /></object>',
+			'<form><input title="本文" /></form>'
+		]) {
+			expect(failure(`${el}<br />`)?.code, el).toBe('unsupported-construct');
+			const r = convertXhtml(
+				page('x<br />', '', `底本：x<br />${el}<br />`),
+				source
+			);
+			expect(r, el).toMatchObject({
+				ok: false,
+				failure: { code: 'unsupported-construct' }
+			});
+		}
+	});
+
+	it('取り込まないセクションの中の実行につながるものも記録する', () => {
+		const withActive = page('x<br />')
+			.replace(
+				'<h2 class="author">芥川龍之介</h2>',
+				'<h2 class="author">芥川龍之介</h2><script>a()</script>'
+			)
+			.replace(
+				'<ul>',
+				'<iframe src="x"></iframe><a href="javascript:b()">x</a><ul>'
+			);
+		const r = convertXhtml(withActive, source);
+		const active = r.ok
+			? r.diagnostics.filter((d) => d.code === 'active-content-removed')
+			: [];
+		for (const tag of ['<script>', '<iframe>', '<a>'])
+			expect(
+				active.some((d) => d.message.includes(tag)),
+				tag
+			).toBe(true);
+	});
+
 	it('セクションの外枠の実行につながる属性も記録する', () => {
 		const withAttrs = page('x<br />')
 			.replace(

@@ -121,6 +121,16 @@ const URL_ATTRS = [
 	'poster'
 ];
 
+/** 文字を持ちうる属性。実行要素の中にあれば、中身ごと捨てずに失敗させる。 */
+const TEXT_ATTRS = [
+	'value',
+	'alt',
+	'title',
+	'placeholder',
+	'label',
+	'aria-label'
+];
+
 /** 木の深さの上限。公式のファイルは十数段で、これを超えるのは異常な入力。 */
 const MAX_DOM_DEPTH = 64;
 
@@ -166,9 +176,16 @@ function convert(html: string, source: WorkSource): ConvertResult {
 
 	/** 実行につながる要素を取り除く。表示される文字を含むものは、情報を失わないよう失敗させる。 */
 	const removeActive = (el: El) => {
+		// 子の文字に加えて、属性に入った文字（value・alt・title など）も、表示・読み上げされうる。
 		const hasText = (n: Node): boolean =>
-			isText(n) ? n.value.trim() !== '' : isEl(n) && n.childNodes.some(hasText);
-		if (!CODE.has(el.tagName) && el.childNodes.some(hasText))
+			isText(n)
+				? n.value.trim() !== ''
+				: isEl(n) &&
+					(n.attrs.some(
+						(a) => TEXT_ATTRS.includes(a.name) && a.value.trim() !== ''
+					) ||
+						n.childNodes.some(hasText));
+		if (!CODE.has(el.tagName) && hasText(el))
 			fail(
 				'unsupported-construct',
 				`<${el.tagName}> の中に表示される文字があります`,
@@ -262,12 +279,13 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			if (sections.bibliography)
 				fail('unsupported-construct', '底本情報が複数あります', node);
 			sections.bibliography = node;
-		} else if (node.tagName === 'div' && cls === 'metadata') continue;
+		} else if (node.tagName === 'div' && cls === 'metadata') scanActive(node);
 		else if (node.tagName === 'div' && attr(node, 'id') === 'contents')
-			continue;
-		else if (node.tagName === 'div' && cls === 'notation_notes')
+			scanActive(node);
+		else if (node.tagName === 'div' && cls === 'notation_notes') {
 			note('section-ignored', '表記についての定型の注記は含めません', node);
-		else if (node.tagName === 'div' && attr(node, 'id') === 'card') {
+			scanActive(node);
+		} else if (node.tagName === 'div' && attr(node, 'id') === 'card') {
 			// 図書カードへの、スクリプトで動くリンク。中身は出力へ入れない。
 			note(
 				'section-ignored',
