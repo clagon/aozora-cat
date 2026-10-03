@@ -266,14 +266,34 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		return node.childNodes.map(plainText).join('');
 	};
 
-	/** 注記の文字列。文字と外字の画像（説明文を入れる）だけを許し、ほかの要素は失敗させる。 */
-	const noteText = (el: El): string => {
-		for (const child of el.childNodes) {
-			if (isEl(child) && !isGaiji(child))
-				fail('unsupported-construct', '注記の中に文字以外があります', child);
-		}
-		return plainText(el);
-	};
+	/**
+	 * 注記の文字列。文字・外字の画像（説明文）・ルビだけを許し、ほかの要素は失敗させる。
+	 * 底本との差異を引用する注記にはルビが入るので、青空文庫の記法（親文字《読み》）で残す。
+	 */
+	const noteText = (el: El): string =>
+		el.childNodes
+			.map((child): string => {
+				if (isText(child)) return plainText(child);
+				if (!isEl(child)) return '';
+				if (isGaiji(child)) return plainText(child);
+				if (child.tagName !== 'ruby')
+					return fail(
+						'unsupported-construct',
+						'注記の中に文字以外があります',
+						child
+					);
+				const parts = { rb: '', rt: '' };
+				for (const part of child.childNodes) {
+					if (isText(part) && plainText(part).trim() === '') continue;
+					if (isEl(part) && part.tagName === 'rp') continue;
+					if (isEl(part) && (part.tagName === 'rb' || part.tagName === 'rt'))
+						parts[part.tagName] += noteText(part);
+					else
+						fail('unsupported-construct', '注記の中のルビが読めません', child);
+				}
+				return `${parts.rb}《${parts.rt}》`;
+			})
+			.join('');
 
 	/** 画像の参照を、変換元ファイルを基準に絶対URLへ解決し、青空文庫の外を拒否する。 */
 	const resolve = (el: El): string => {

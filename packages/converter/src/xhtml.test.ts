@@ -579,7 +579,7 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		for (const inner of [
 			'<b>文字</b>',
 			'<img src="a.png" alt="文字" />',
-			'<ruby><rb>漢</rb><rt>かん</rt></ruby>'
+			'<ruby><rb>漢</rb><b>x</b><rt>かん</rt></ruby>'
 		]) {
 			expect(
 				failure(`<span class="notes">［＃${inner}］</span><br />`)?.code,
@@ -592,6 +592,19 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 				inner
 			).toBe('unsupported-construct');
 		}
+		// 底本との差異を引用する注記のルビは、青空文庫の記法（親文字《読み》）で残す。
+		const quoted = ok(
+			'<span class="notes">［＃「<ruby><rb>物云う</rb><rp>（</rp><rt>テルテール</rt><rp>）</rp></ruby>」は底本では「物云う」］</span>あ<br />'
+		);
+		expect(quoted.work.blocks[0]).toMatchObject({
+			inline: [
+				{
+					kind: 'note',
+					text: '［＃「物云う《テルテール》」は底本では「物云う」］'
+				},
+				text('あ')
+			]
+		});
 		// 外字の画像は、説明文を注記の文字として残す。
 		const { work } = ok(
 			`<span class="notes">［＃左に「${gaijiImg}」の注記付き終わり］</span>あ<br />`
