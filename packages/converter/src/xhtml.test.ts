@@ -509,6 +509,26 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		],
 		['読みのないルビ', '<ruby><rb>漢</rb></ruby>', 'unsupported-construct'],
 		[
+			'読みが複数のルビ',
+			'<ruby><rb>漢</rb><rt>かん</rt><rt>kan</rt></ruby>',
+			'unsupported-construct'
+		],
+		[
+			'親文字が複数のルビ',
+			'<ruby><rb>漢</rb><rb>字</rb><rt>かんじ</rt></ruby>',
+			'unsupported-construct'
+		],
+		[
+			'括弧以外のある rp',
+			'<ruby><rb>漢</rb><rp>隠れた文字</rp><rt>かん</rt></ruby>',
+			'unsupported-construct'
+		],
+		[
+			'注記の中の読みが複数のルビ',
+			'<span class="notes">［＃「<ruby><rb>漢</rb><rt>a</rt><rt>b</rt></ruby>」］</span>',
+			'unsupported-construct'
+		],
+		[
 			'ルビの中の未知の要素',
 			'<ruby><rb>漢</rb><b>x</b><rt>かん</rt></ruby>',
 			'unknown-element'
@@ -584,13 +604,13 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 			expect(
 				failure(`<span class="notes">［＃${inner}］</span><br />`)?.code,
 				inner
-			).toBe('unsupported-construct');
+			).toMatch(/unsupported-construct|unknown-element/);
 			expect(
 				failure(
 					`<em class="sesame_dot">あ<span class="notes">［＃${inner}］</span></em><br />`
 				)?.code,
 				inner
-			).toBe('unsupported-construct');
+			).toMatch(/unsupported-construct|unknown-element/);
 		}
 		// 底本との差異を引用する注記のルビは、青空文庫の記法（親文字《読み》）で残す。
 		const quoted = ok(

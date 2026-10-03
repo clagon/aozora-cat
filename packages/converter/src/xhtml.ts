@@ -282,16 +282,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 						'注記の中に文字以外があります',
 						child
 					);
-				const parts = { rb: '', rt: '' };
-				for (const part of child.childNodes) {
-					if (isText(part) && plainText(part).trim() === '') continue;
-					if (isEl(part) && part.tagName === 'rp') continue;
-					if (isEl(part) && (part.tagName === 'rb' || part.tagName === 'rt'))
-						parts[part.tagName] += noteText(part);
-					else
-						fail('unsupported-construct', '注記の中のルビが読めません', child);
-				}
-				return `${parts.rb}《${parts.rt}》`;
+				const { rb, rt } = rubyParts(child);
+				return `${noteText(rb)}《${noteText(rt)}》`;
 			})
 			.join('');
 
@@ -379,28 +371,27 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		return [{ kind: 'emphasis', mark, side, children: nested(el, inRuby) }];
 	}
 
-	function ruby(el: El): Draft[] {
+	/** ルビの構造を確かめる。親文字（rb）と読み（rt）はちょうど1つずつ、rp は括弧だけ。 */
+	function rubyParts(el: El): { rb: El; rt: El } {
 		attrs(el, []);
-		const base: Inline[] = [];
-		let reading = '';
+		let rb: El | undefined;
+		let rt: El | undefined;
 		for (const child of el.childNodes) {
 			if (isText(child)) {
 				if (plainText(child).trim() !== '')
 					fail('unsupported-construct', 'ルビの外に文字があります', el);
 			} else if (isEl(child) && child.tagName === 'rb') {
-				attrs(child, []);
-				base.push(...onlyInline(inlines(child.childNodes, true), child));
+				if (rb)
+					fail('unsupported-construct', 'ルビの親文字が複数あります', child);
+				rb = child;
+			} else if (isEl(child) && child.tagName === 'rt') {
+				if (rt)
+					fail('unsupported-construct', 'ルビの読みが複数あります', child);
+				rt = child;
 			} else if (isEl(child) && child.tagName === 'rp') {
 				attrs(child, []);
-			} else if (isEl(child) && child.tagName === 'rt') {
-				attrs(child, []);
-				if (child.childNodes.some((c) => !isText(c)))
-					fail(
-						'unsupported-construct',
-						'ルビの読みに文字以外が入っています',
-						child
-					);
-				reading = plainText(child);
+				if (!/^[（）()]*$/.test(plainText(child)))
+					fail('unsupported-construct', 'rp に括弧以外の文字があります', child);
 			} else if (isEl(child)) {
 				fail(
 					'unknown-element',
@@ -409,6 +400,23 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				);
 			}
 		}
+		if (!rb || !rt)
+			return fail(
+				'unsupported-construct',
+				'ルビの親文字または読みがありません',
+				el
+			);
+		attrs(rb, []);
+		attrs(rt, []);
+		if (rt.childNodes.some((c) => !isText(c)))
+			fail('unsupported-construct', 'ルビの読みに文字以外が入っています', rt);
+		return { rb, rt };
+	}
+
+	function ruby(el: El): Draft[] {
+		const { rb, rt } = rubyParts(el);
+		const base = onlyInline(inlines(rb.childNodes, true), rb);
+		const reading = plainText(rt);
 		if (base.length === 0 || reading === '')
 			fail('unsupported-construct', 'ルビの親文字または読みが空です', el);
 		return [{ kind: 'ruby', base, reading }];
