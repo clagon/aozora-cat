@@ -693,6 +693,18 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('底本情報の罫線は行の区切りで、前後の記載事項を連結しない', () => {
+		const r = convertXhtml(
+			page('x<br />', '', '<hr />底本：A<hr />入力：B<br />校正：C'),
+			source
+		);
+		expect(r.ok && r.work.provenance.bibliography).toEqual([
+			'底本：A',
+			'入力：B',
+			'校正：C'
+		]);
+	});
+
 	it('表示される文字を含む実行要素は、中身ごと捨てずに失敗にする', () => {
 		for (const el of [
 			'<form>底本：本文</form>',

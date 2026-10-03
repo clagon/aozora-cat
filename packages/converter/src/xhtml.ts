@@ -753,8 +753,12 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				bibliography.push(current);
 				current = '';
 			} else if (isEl(node) && ACTIVE.has(node.tagName)) removeActive(node);
-			else if (isEl(node) && node.tagName === 'hr') attrs(node, []);
-			else if (isEl(node) && node.tagName === 'a') {
+			else if (isEl(node) && node.tagName === 'hr') {
+				// 罫線は行の区切り。前後の記載事項を1行に連結しない。
+				attrs(node, []);
+				bibliography.push(current);
+				current = '';
+			} else if (isEl(node) && node.tagName === 'a') {
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
 				attrs(node, ['href']);
 				collect(node.childNodes);
