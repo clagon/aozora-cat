@@ -242,23 +242,25 @@ describe('parseWork', () => {
 			'provenance.source.fileUrl',
 			'https://www.aozora.gr.jp/cards/000148/files/92_14545.html'
 		);
-		// 安全な整数の範囲を超える人物IDでも、丸めずに別のディレクトリとして扱う。
-		const big = (n: string) => `https://www.aozora.gr.jp/cards/${n}`;
-		const crossed = change(
-			'provenance.source.cardUrl',
-			`${big('9007199254740992')}/card92.html`
-		);
-		const r = parseWork(
-			change(
+		// 桁数が正規でない人物ディレクトリ・作品番号は、同じ値を両方に使っても拒否する。
+		for (const dir of [
+			'9',
+			'0008790',
+			'900719925474099299999999999999999999'
+		]) {
+			const base = `https://www.aozora.gr.jp/cards/${dir}`;
+			const card = change('provenance.source.cardUrl', `${base}/card92.html`);
+			const both = change(
 				'provenance.source.fileUrl',
-				`${big('9007199254740993')}/files/92_14545.html`,
-				crossed
-			)
+				`${base}/files/92_14545.html`,
+				card
+			);
+			expect(parseWork(both).ok, dir).toBe(false);
+		}
+		rejects(
+			'provenance.source.cardUrl',
+			'https://www.aozora.gr.jp/cards/000879/card9999999.html'
 		);
-		expect(r).toMatchObject({
-			ok: false,
-			error: { path: '$.provenance.source.fileUrl' }
-		});
 		// 先頭のゼロの有無は同じ作品として扱う。
 		const ok = parseWork(
 			change(

@@ -449,9 +449,10 @@ function person(v: unknown, path: string): Person {
 	return p;
 }
 
-const CARD_PATH = /^\/cards\/(\d+)\/card(\d+)\.html$/;
+/** 人物ディレクトリは6桁。作品番号は先頭のゼロなしで6桁以内。 */
+const CARD_PATH = /^\/cards\/(\d{6})\/card(\d{1,6})\.html$/;
 const FILE_PATH =
-	/^\/cards\/(\d+)\/files\/(\d+)_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
+	/^\/cards\/(\d{6})\/files\/(\d{1,6})_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
 
 function validDate(s: string): boolean {
 	const d = new Date(`${s}T00:00:00Z`);
@@ -477,7 +478,7 @@ function ownUrl(
 	const [, person, number] = pathname.exec(new URL(url).pathname) ?? [];
 	if (number === undefined || canon(number) !== canon(workId))
 		throw new Invalid(`${path}.${key}`, '作品IDと異なる作品のURLです');
-	return { url, person: canon(person ?? '') };
+	return { url, person: person ?? '' };
 }
 
 function provenance(v: unknown, path: string, workId: string): Provenance {
