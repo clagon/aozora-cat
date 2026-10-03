@@ -381,6 +381,23 @@ describe('parseWork', () => {
 		);
 	});
 
+	it('穴のある配列（sparse）を、要素が消えたまま通さない', () => {
+		for (const [key, errorPath] of [
+			['people', '$.people[0]'],
+			['blocks', '$.blocks[0]'],
+			['provenance.bibliography', '$.provenance.bibliography[0]']
+		]) {
+			const doc = change(key, REMOVE);
+			const keys = key.split('.');
+			const parent = keys.length > 1 ? Reflect.get(Object(doc), keys[0]) : doc;
+			Reflect.set(Object(parent), keys.at(-1) ?? '', new Array(1));
+			expect(parseWork(doc), key).toMatchObject({
+				ok: false,
+				error: { path: errorPath }
+			});
+		}
+	});
+
 	it('深すぎる入れ子を拒否する', () => {
 		let node: unknown = { kind: 'text', text: 'x' };
 		for (let i = 0; i < 20; i++) node = { kind: 'strong', children: [node] };

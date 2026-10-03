@@ -226,7 +226,10 @@ function list<T>(
 	const v = r[key];
 	if (!Array.isArray(v) || (!allowEmpty && v.length === 0))
 		throw new Invalid(`${path}.${key}`, '配列が必要です');
-	return v.map((item: unknown, i) => each(item, `${path}.${key}[${i}]`));
+	// Array.from は穴（sparse な配列）も undefined として渡すので、各要素の検証で落ちる。
+	return Array.from(v, (item: unknown, i) =>
+		each(item, `${path}.${key}[${i}]`)
+	);
 }
 
 /** 青空文庫の許可した場所への https URL だけを通す。正規化した形と一致しなければ拒否する。 */

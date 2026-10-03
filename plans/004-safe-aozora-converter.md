@@ -112,3 +112,8 @@ constructs below until a fixture requires them and a schema decision is made:
   the surrounding text flows and need a heading form independent of its level.
 - Any other construct from the official annotation guide not listed in the
   approved fixtures (for example 返り点 and 訓点送り仮名).
+- Per-work image ownership beyond the person directory. The schema only
+  bounds image URLs to the work's own `files` directory and the shared gaiji
+  directory. The converter derives image URLs solely from references in the
+  source file, resolved against its URL, and the importer (Plan 005) checks
+  them against what it actually fetched.
