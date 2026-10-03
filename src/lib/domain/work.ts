@@ -73,7 +73,7 @@ export type Block =
 
 export type PersonRole = 'author' | 'translator' | 'editor';
 
-export type Person = { role: PersonRole; name: string };
+export type Person = { role: PersonRole; name: string; reading?: string };
 
 export type Provenance = {
 	/** 頒布してよいのは作品の著作権フラグが「なし」のものだけ。人物のフラグは使わない。 */
@@ -91,6 +91,11 @@ export type Work = {
 	id: string;
 	title: string;
 	titleReading?: string;
+	/** 副題。検索の対象なので、題名へ混ぜずに分けて持つ。 */
+	subtitle?: string;
+	subtitleReading?: string;
+	/** 公式の分類（例: NDC 913）。 */
+	classification?: string;
 	people: Person[];
 	/** 公式の作品一覧にある表記（例: 新字新仮名）。 */
 	orthography: string;
@@ -371,11 +376,13 @@ function block(v: unknown, path: string): Block {
 }
 
 function person(v: unknown, path: string): Person {
-	const r = rec(v, path, ['role', 'name']);
-	return {
+	const r = rec(v, path, ['role', 'name', 'reading']);
+	const p: Person = {
 		role: oneOf(r, 'role', path, ['author', 'translator', 'editor']),
 		name: str(r, 'name', path)
 	};
+	if (r.reading !== undefined) p.reading = str(r, 'reading', path);
+	return p;
 }
 
 const CARD_PATH = /^\/cards\/\d+\/card(\d+)\.html$/;
@@ -459,6 +466,9 @@ export function parseWork(input: unknown): WorkResult {
 			'id',
 			'title',
 			'titleReading',
+			'subtitle',
+			'subtitleReading',
+			'classification',
 			'people',
 			'orthography',
 			'provenance',
@@ -483,8 +493,14 @@ export function parseWork(input: unknown): WorkResult {
 			provenance: provenance(r.provenance, '$.provenance', id),
 			blocks
 		};
-		if (r.titleReading !== undefined)
-			work.titleReading = str(r, 'titleReading', '$');
+		for (const key of [
+			'titleReading',
+			'subtitle',
+			'subtitleReading',
+			'classification'
+		] as const) {
+			if (r[key] !== undefined) work[key] = str(r, key, '$');
+		}
 		return { ok: true, work };
 	} catch (e) {
 		if (e instanceof Invalid)

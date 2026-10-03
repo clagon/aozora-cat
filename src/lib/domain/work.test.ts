@@ -10,7 +10,12 @@ function valid() {
 		id: '000092',
 		title: '蜘蛛の糸',
 		titleReading: 'くものいと',
-		people: [{ role: 'author', name: '芥川竜之介' }],
+		subtitle: '童話',
+		subtitleReading: 'どうわ',
+		classification: 'NDC 913',
+		people: [
+			{ role: 'author', name: '芥川竜之介', reading: 'あくたがわりゅうのすけ' }
+		],
 		orthography: '新字新仮名',
 		provenance: {
 			copyright: { work: 'なし' },
@@ -232,6 +237,16 @@ describe('parseWork', () => {
 		rejects(`${at}.step`, 0);
 		rejects(`${at}.step`, 6);
 		rejects(`${at}.direction`, 'bigger');
+	});
+
+	it('副題・読み・分類は任意だが、あれば空を許さない', () => {
+		for (const key of ['subtitle', 'subtitleReading', 'classification']) {
+			expect(parseWork(change(key, REMOVE)).ok, key).toBe(true);
+			rejects(key, '');
+		}
+		expect(parseWork(change('titleReading', REMOVE)).ok).toBe(true);
+		expect(parseWork(change('people[0].reading', REMOVE)).ok).toBe(true);
+		rejects('people[0].reading', '');
 	});
 
 	it('block の id の重複を拒否する', () => {
