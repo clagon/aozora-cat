@@ -106,6 +106,9 @@ const HEADINGS: Record<string, { tag: string; level: HeadingLevel }> = {
 
 const AOZORA_ORIGIN = 'https://www.aozora.gr.jp';
 
+/** 木の深さの上限。公式のファイルは十数段で、これを超えるのは異常な入力。 */
+const MAX_DOM_DEPTH = 64;
+
 /** 公式XHTMLを変換する。出力は必ず parseWork を通した作品か、場所つきの失敗になる。 */
 export function convertXhtml(html: string, source: WorkSource): ConvertResult {
 	// 頒布してよいのは作品の著作権フラグが「なし」のものだけ。本文を読む前に止める。
@@ -169,6 +172,16 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	if (!body)
 		throw new Failure('missing-section', 'body がありません', 'document');
 
+	// 再帰で読む前に、木の深さを数える。深く入れ子にした入力で例外にならないようにする。
+	const stack: [El, number][] = [[body, 1]];
+	for (let top = stack.pop(); top; top = stack.pop()) {
+		const [el, depth] = top;
+		if (depth > MAX_DOM_DEPTH)
+			fail('unsupported-construct', '要素の入れ子が深すぎます', el);
+		for (const child of el.childNodes)
+			if (isEl(child)) stack.push([child, depth + 1]);
+	}
+
 	/** 捨てるセクションの中の、実行につながるものを記録する。 */
 	const scanActive = (el: El) => {
 		for (const child of el.childNodes.filter(isEl)) {
@@ -188,6 +201,12 @@ function convert(html: string, source: WorkSource): ConvertResult {
 
 	const sections: Record<string, El> = {};
 	for (const node of body.childNodes) {
+		if (isText(node)) {
+			// セクションの外の本文は、途中で閉じた壊れたマークアップの可能性がある。捨てずに止める。
+			if (node.value.trim() !== '')
+				fail('unknown-section', 'セクションの外に文字があります', body);
+			continue;
+		}
 		if (!isEl(node)) continue;
 		if (ACTIVE.has(node.tagName)) {
 			note(
@@ -198,10 +217,18 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			continue;
 		}
 		const cls = attr(node, 'class');
-		if (node.tagName === 'div' && cls === 'main_text') sections.main = node;
-		else if (node.tagName === 'div' && cls === 'bibliographical_information')
+		if (node.tagName === 'div' && cls === 'main_text') {
+			if (sections.main)
+				fail('unsupported-construct', '本文が複数あります', node);
+			sections.main = node;
+		} else if (
+			node.tagName === 'div' &&
+			cls === 'bibliographical_information'
+		) {
+			if (sections.bibliography)
+				fail('unsupported-construct', '底本情報が複数あります', node);
 			sections.bibliography = node;
-		else if (node.tagName === 'div' && cls === 'metadata') continue;
+		} else if (node.tagName === 'div' && cls === 'metadata') continue;
 		else if (node.tagName === 'div' && attr(node, 'id') === 'contents')
 			continue;
 		else if (node.tagName === 'div' && cls === 'notation_notes')
@@ -656,11 +683,16 @@ function convert(html: string, source: WorkSource): ConvertResult {
 					node
 				);
 			else if (isEl(node) && node.tagName === 'hr') continue;
-			else if (isEl(node)) {
-				if (node.tagName === 'a')
-					note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
+			else if (isEl(node) && node.tagName === 'a') {
+				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
 				collect(node.childNodes);
-			}
+			} else if (isEl(node) && isGaiji(node)) current += plainText(node);
+			else if (isEl(node))
+				fail(
+					'unknown-element',
+					`底本情報の中の未知の要素 <${node.tagName}>`,
+					node
+				);
 		}
 	};
 	collect(sections.bibliography.childNodes);
@@ -703,6 +735,10 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		);
 	}
 	return { ok: true, work: checked.work, diagnostics };
+}
+
+function isGaiji(el: El): boolean {
+	return el.tagName === 'img' && attr(el, 'class') === 'gaiji';
 }
 
 function attr(el: El, name: string): string | undefined {

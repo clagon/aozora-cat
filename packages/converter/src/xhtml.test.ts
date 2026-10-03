@@ -25,7 +25,11 @@ const fig = (name: string, w = 100, h = 50) =>
 	`<img class="illustration" width="${w}" height="${h}" src="${name}" alt="図" />`;
 
 /** 公式XHTMLと同じ骨格に、本文だけを差し込む。 */
-function page(main: string, tail = '') {
+function page(
+	main: string,
+	tail = '',
+	bibliography = '底本：「蜘蛛の糸・杜子春」新潮文庫、新潮社<br />\n　　　1968（昭和43）年11月20日発行<br />\n入力：作業者<br />\n<br />'
+) {
 	return `<?xml version="1.0" encoding="Shift_JIS"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja">
@@ -46,10 +50,7 @@ function page(main: string, tail = '') {
 <div class="bibliographical_information">
 <hr />
 <br />
-底本：「蜘蛛の糸・杜子春」新潮文庫、新潮社<br />
-　　　1968（昭和43）年11月20日発行<br />
-入力：作業者<br />
-<br />
+${bibliography}
 </div>
 <div class="notation_notes">
 <hr />
@@ -530,6 +531,58 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 			expect(f?.location).toMatch(/^L\d+:C\d+ </);
 		});
 	}
+
+	it('底本情報の中の未知の要素は、平らにせず失敗させる', () => {
+		for (const bib of [
+			'<table><tr><td>底本</td></tr></table>',
+			'<ul><li>底本</li></ul>',
+			'<img src="x.png" alt="底本" />',
+			'<b>底本</b>'
+		]) {
+			const r = convertXhtml(page('x<br />', '', bib), source);
+			expect(r, bib).toMatchObject({
+				ok: false,
+				failure: { code: 'unknown-element' }
+			});
+		}
+		// リンクと外字の画像は、文字として残す。
+		const r = convertXhtml(
+			page(
+				'x<br />',
+				'',
+				`底本：<a href="https://x.example/">本</a>${gaijiImg}<br />`
+			),
+			source
+		);
+		expect(r.ok && r.work.provenance.bibliography).toEqual([
+			'底本：本※(「特のへん＋廴＋聿」、第3水準1-87-71)'
+		]);
+	});
+
+	it('同じセクションの重複は、前のものを上書きせず失敗させる', () => {
+		for (const dup of [
+			'<div class="main_text"></div>',
+			'<div class="bibliographical_information"></div>'
+		])
+			expect(failure('x<br />', dup)?.code).toBe('unsupported-construct');
+	});
+
+	it('セクションの外の文字は、捨てずに失敗させる', () => {
+		expect(failure('x<br />', '途中で閉じたあとの本文')?.code).toBe(
+			'unknown-section'
+		);
+	});
+
+	it('深い入れ子は、例外にせず失敗として返す', () => {
+		for (const depth of [20, 200, 20000]) {
+			const nested =
+				'<span class="futoji">'.repeat(depth) + 'x' + '</span>'.repeat(depth);
+			const r = convertXhtml(page(`${nested}<br />`), source);
+			expect(r.ok, `depth ${depth}`).toBe(false);
+		}
+		const notes = `<span class="notes">${'<b>'.repeat(20000)}x</span><br />`;
+		expect(convertXhtml(page(notes), source).ok).toBe(false);
+	});
 
 	it('未知のセクションと、必須のセクションの欠落', () => {
 		expect(failure('x<br />', '<div class="advert">x</div>')?.code).toBe(
