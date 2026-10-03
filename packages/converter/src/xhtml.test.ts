@@ -559,6 +559,51 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		]);
 	});
 
+	it('［＃本文終わり］のある作品の after_text を、底本情報の代わりに受け取る', () => {
+		const withAfter = page('x<br />').replace(
+			/<div class="bibliographical_information">[\s\S]*?<\/div>/,
+			'<div class="after_text">\n<hr />\n<br />\n入力：富田倫生<br />\n校正：富田倫生<br />\n</div>'
+		);
+		const r = convertXhtml(withAfter, source);
+		expect(r.ok && r.work.provenance.bibliography).toEqual([
+			'入力：富田倫生',
+			'校正：富田倫生'
+		]);
+		// 底本情報と after_text が両方あるものは、どちらを採るか決められないので失敗させる。
+		expect(
+			failure('x<br />', '<div class="after_text">x<br /></div>')?.code
+		).toBe('unsupported-construct');
+	});
+
+	it('注記の中の文字以外は、文字に平らにせず失敗させる', () => {
+		for (const inner of [
+			'<b>文字</b>',
+			'<img src="a.png" alt="文字" />',
+			'<ruby><rb>漢</rb><rt>かん</rt></ruby>'
+		]) {
+			expect(
+				failure(`<span class="notes">［＃${inner}］</span><br />`)?.code,
+				inner
+			).toBe('unsupported-construct');
+			expect(
+				failure(
+					`<em class="sesame_dot">あ<span class="notes">［＃${inner}］</span></em><br />`
+				)?.code,
+				inner
+			).toBe('unsupported-construct');
+		}
+		// 外字の画像は、説明文を注記の文字として残す。
+		const { work } = ok(
+			`<span class="notes">［＃左に「${gaijiImg}」の注記付き終わり］</span>あ<br />`
+		);
+		expect(work.blocks[0]).toMatchObject({
+			inline: [
+				{ kind: 'note', text: expect.stringContaining('※(「特のへん') },
+				text('あ')
+			]
+		});
+	});
+
 	it('同じセクションの重複は、前のものを上書きせず失敗させる', () => {
 		for (const dup of [
 			'<div class="main_text"></div>',

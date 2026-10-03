@@ -223,8 +223,9 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			sections.main = node;
 		} else if (
 			node.tagName === 'div' &&
-			cls === 'bibliographical_information'
+			(cls === 'bibliographical_information' || cls === 'after_text')
 		) {
+			// ［＃本文終わり］のあるファイルでは、同じ形の記載事項が after_text に入る。どちらか1つだけ。
 			if (sections.bibliography)
 				fail('unsupported-construct', '底本情報が複数あります', node);
 			sections.bibliography = node;
@@ -252,7 +253,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	if (!sections.bibliography)
 		throw new Failure(
 			'missing-section',
-			'底本情報（bibliographical_information）がありません',
+			'底本情報（bibliographical_information または after_text）がありません',
 			'body'
 		);
 
@@ -263,6 +264,15 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		if (ACTIVE.has(node.tagName)) return '';
 		if (node.tagName === 'img') return attr(node, 'alt') ?? '';
 		return node.childNodes.map(plainText).join('');
+	};
+
+	/** 注記の文字列。文字と外字の画像（説明文を入れる）だけを許し、ほかの要素は失敗させる。 */
+	const noteText = (el: El): string => {
+		for (const child of el.childNodes) {
+			if (isEl(child) && !isGaiji(child))
+				fail('unsupported-construct', '注記の中に文字以外があります', child);
+		}
+		return plainText(el);
 	};
 
 	/** 画像の参照を、変換元ファイルを基準に絶対URLへ解決し、青空文庫の外を拒否する。 */
@@ -307,7 +317,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		if (cls === 'warichu') return container(el, 'warichu', inRuby);
 		if (cls === 'yokogumi') return container(el, 'horizontal', inRuby);
 		// 行の途中や装飾の中の注記は、構造の指示ではなく、そのまま注記として残す。
-		if (cls === 'notes') return [{ kind: 'note', text: plainText(el) }];
+		if (cls === 'notes') return [{ kind: 'note', text: noteText(el) }];
 		if (cls === 'caption')
 			return [{ kind: 'caption', children: nested(el, inRuby) }];
 		const size = cls?.match(/^(dai|sho)([1-5])$/);
@@ -592,7 +602,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 
 	function noteSpan(el: El) {
 		attrs(el, ['class']);
-		const text = plainText(el);
+		const text = noteText(el);
 		const inner = text.match(/^［＃(.*)］$/s)?.[1];
 		const pageBreak = inner === undefined ? undefined : BREAKS[inner];
 		if (pageBreak !== undefined || inner === 'ページの左右中央') {
