@@ -4,7 +4,7 @@ import { parse } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
 import {
 	EMPHASIS_MARKS,
-	GAIJI_IMAGE,
+	isGaijiImageUrl,
 	WORK_SCHEMA_VERSION,
 	parseWork
 } from '../../../src/lib/domain/work.ts';
@@ -198,10 +198,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	const attrs = (el: El, allowed: string[]) => {
 		for (const { name, value } of el.attrs) {
 			// 意味を持つ属性でも、実行につながる値は先に調べて記録する。
-			const active =
-				name.startsWith('on') ||
-				(URL_ATTRS.includes(name) &&
-					/^\s*(javascript|data|vbscript):/i.test(value));
+			const active = isActiveAttr(name, value);
 			if (
 				!active &&
 				(allowed.includes(name) || ['id', 'lang', 'xml:lang'].includes(name))
@@ -236,16 +233,19 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	/** 捨てるセクションの中の、実行につながるものを記録する。 */
 	const scanActive = (el: El) => {
 		for (const child of el.childNodes.filter(isEl)) {
-			const href = attr(child, 'href') ?? '';
-			if (
-				ACTIVE.has(child.tagName) ||
-				/^\s*(javascript|data|vbscript):/i.test(href)
-			)
+			if (ACTIVE.has(child.tagName))
 				note(
 					'active-content-removed',
 					`<${child.tagName}> を取り除きました`,
 					child
 				);
+			for (const { name, value } of child.attrs)
+				if (isActiveAttr(name, value))
+					note(
+						'active-content-removed',
+						`属性 ${name} を取り除きました`,
+						child
+					);
 			scanActive(child);
 		}
 	};
@@ -344,9 +344,10 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	const gaijiText = (el: El): string => {
 		attrs(el, ['class', 'src', 'alt']);
 		const alt = attr(el, 'alt') ?? '';
-		if (alt === '') fail('invalid-image', '外字の説明（alt）がありません', el);
+		if (alt.trim() === '')
+			fail('invalid-image', '外字の説明（alt）がありません', el);
 		// 説明文を信頼する前に、画像の参照も本文の外字と同じ規則で確かめる。
-		if (!GAIJI_IMAGE.test(new URL(resolve(el)).pathname))
+		if (!isGaijiImageUrl(resolve(el)))
 			fail('invalid-image', '外字の画像が /gaiji/ の外にあります', el);
 		return alt;
 	};
@@ -832,6 +833,14 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		);
 	}
 	return { ok: true, work: checked.work, diagnostics };
+}
+
+/** イベント属性、または javascript: などのスキームを持つ URL 属性。 */
+function isActiveAttr(name: string, value: string): boolean {
+	return (
+		name.startsWith('on') ||
+		(URL_ATTRS.includes(name) && /^\s*(javascript|data|vbscript):/i.test(value))
+	);
 }
 
 function isGaiji(el: El): boolean {

@@ -712,6 +712,45 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('空白だけの説明の外字と、正規でない URL の外字は、注記・底本情報で失敗にする', () => {
+		for (const [src, alt] of [
+			['../../../gaiji/a.png', '　'],
+			['../../../gaiji/a.png', '  '],
+			['../../../gaiji/a.png?tracking=1', '外字'],
+			['../../../gaiji/a.png#x', '外字'],
+			['https://user@www.aozora.gr.jp/gaiji/a.png', '外字'],
+			['https://www.aozora.gr.jp:8443/gaiji/a.png', '外字']
+		]) {
+			const img = `<img src="${src}" alt="${alt}" class="gaiji" />`;
+			expect(
+				failure(`<span class="notes">［＃「${img}」］</span><br />`)?.code,
+				`${src} ${alt}`
+			).toBe('invalid-image');
+			const r = convertXhtml(page('x<br />', '', `底本${img}<br />`), source);
+			expect(r, `${src} ${alt}`).toMatchObject({
+				ok: false,
+				failure: { code: 'invalid-image' }
+			});
+		}
+	});
+
+	it('取り込まないセクションの中の、実行につながる属性も記録する', () => {
+		const r = convertXhtml(
+			page('x<br />').replace(
+				'<h1 class="title">',
+				'<h1 class="title" onclick="x()">'
+			),
+			source
+		);
+		expect(
+			r.ok &&
+				r.diagnostics.some(
+					(d) =>
+						d.code === 'active-content-removed' && d.message.includes('onclick')
+				)
+		).toBe(true);
+	});
+
 	it('取り込まないセクションの中の実行につながるものも記録する', () => {
 		const withActive = page('x<br />')
 			.replace(
@@ -726,7 +765,7 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		const active = r.ok
 			? r.diagnostics.filter((d) => d.code === 'active-content-removed')
 			: [];
-		for (const tag of ['<script>', '<iframe>', '<a>'])
+		for (const tag of ['<script>', '<iframe>', '属性 href'])
 			expect(
 				active.some((d) => d.message.includes(tag)),
 				tag
@@ -833,13 +872,15 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 				(d) => d.code === 'active-content-removed' && d.message.includes('href')
 			)
 		).toBe(true);
-		// 通常のリンクは、実行につながるものとして記録しない。
-		const plain = ok('<a href="https://x.example/">リンク</a><br />');
-		expect(
-			plain.diagnostics.some(
+		// 通常のリンクは、実行につながるものとして記録しない（図書カードのセクションの分だけ）。
+		const hrefs = (x: ReturnType<typeof ok>) =>
+			x.diagnostics.filter(
 				(d) => d.code === 'active-content-removed' && d.message.includes('href')
-			)
-		).toBe(false);
+			).length;
+		const base = ok('あ<br />');
+		const plain = ok('<a href="https://x.example/">リンク</a><br />');
+		expect(hrefs(plain)).toBe(hrefs(base));
+		expect(hrefs(r)).toBe(hrefs(base) + 1);
 	});
 
 	it('底本情報の中のリンクの実行につながる属性も記録する', () => {

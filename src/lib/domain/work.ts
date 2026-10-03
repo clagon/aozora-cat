@@ -263,9 +263,19 @@ function aozoraUrl(
 }
 
 /** 外字は全作品で共有する /gaiji/ 配下、挿絵は作品の files ディレクトリ配下だけを許す。 */
-export const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
+const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
 const CARD_IMAGE =
 	/^\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|gif)$/;
+
+/** 外字の画像のURLとして許可できるか。変換器が、文字へ平らにする外字を確かめるときに使う。 */
+export function isGaijiImageUrl(url: string): boolean {
+	try {
+		aozoraUrl({ url }, 'url', '', GAIJI_IMAGE);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 function imageRef(v: unknown, path: string, pathname: RegExp): ImageRef {
 	const r = rec(v, path, ['url']);
