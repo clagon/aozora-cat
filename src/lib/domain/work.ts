@@ -9,7 +9,28 @@ export type ImageRef = { url: string };
 
 export type ImageSize = { width: number; height: number };
 
-export type EmphasisStyle = 'sesame' | 'underline';
+/**
+ * 公式の強調の記法に対応する印。傍点は sesame（ゴマ）から saltire（ばつ）まで、
+ * 傍線は solid（実線）から wave（波線）まで。
+ */
+export const EMPHASIS_MARKS = [
+	'sesame',
+	'whiteSesame',
+	'blackCircle',
+	'whiteCircle',
+	'blackTriangle',
+	'whiteTriangle',
+	'bullseye',
+	'fisheye',
+	'saltire',
+	'solid',
+	'double',
+	'dotted',
+	'dashed',
+	'wave'
+] as const;
+
+export type EmphasisMark = (typeof EMPHASIS_MARKS)[number];
 
 /** 子を持つだけの装飾。strong=太字、frame=罫囲み、warichu=割注、horizontal=横組み、tcy=縦中横。 */
 export type ContainerKind =
@@ -25,7 +46,13 @@ export type Inline =
 	| { kind: 'text'; text: string }
 	/** 親文字の中にルビは入れない。外字や装飾は入れてよい。 */
 	| { kind: 'ruby'; base: Inline[]; reading: string }
-	| { kind: 'emphasis'; style: EmphasisStyle; children: Inline[] }
+	/** side は縦組みでの付く側。right が通常、left が「の左に」の注記。 */
+	| {
+			kind: 'emphasis';
+			mark: EmphasisMark;
+			side: 'right' | 'left';
+			children: Inline[];
+	  }
 	| { kind: ContainerKind; children: Inline[] }
 	/** 大きな文字・小さな文字。step は上流の段階（1〜5）。行の幅が変わるのでページ境界に影響する。 */
 	| {
@@ -284,10 +311,11 @@ function inline(
 		};
 	}
 	if (kind === 'emphasis') {
-		const r = rec(v, path, ['kind', 'style', 'children']);
+		const r = rec(v, path, ['kind', 'mark', 'side', 'children']);
 		return {
 			kind,
-			style: oneOf(r, 'style', path, ['sesame', 'underline']),
+			mark: oneOf(r, 'mark', path, EMPHASIS_MARKS),
+			side: oneOf(r, 'side', path, ['right', 'left']),
 			children: children(r, path, depth, inRuby)
 		};
 	}

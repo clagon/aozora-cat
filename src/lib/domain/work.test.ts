@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORK_SCHEMA_VERSION, parseWork } from './work.ts';
+import { EMPHASIS_MARKS, WORK_SCHEMA_VERSION, parseWork } from './work.ts';
 
 const gaiji = 'https://www.aozora.gr.jp/gaiji/1-87/1-87-71.png';
 
@@ -58,7 +58,8 @@ function valid() {
 					},
 					{
 						kind: 'emphasis',
-						style: 'sesame',
+						mark: 'sesame',
+						side: 'right',
 						children: [
 							{ kind: 'strong', children: [{ kind: 'text', text: '傍点' }] }
 						]
@@ -299,6 +300,19 @@ describe('parseWork', () => {
 			ok: false,
 			error: { path: '$.subtitleReading' }
 		});
+	});
+
+	it('公式の傍点・傍線の印をすべて残し、未知の印や側を拒否する', () => {
+		for (const mark of EMPHASIS_MARKS) {
+			for (const side of ['right', 'left']) {
+				const doc = change('blocks[2].inline[2].mark', mark);
+				const r = parseWork(change('blocks[2].inline[2].side', side, doc));
+				expect(r.ok, `${mark} ${side}`).toBe(true);
+			}
+		}
+		rejects('blocks[2].inline[2].mark', 'wavy');
+		rejects('blocks[2].inline[2].side', 'both');
+		rejects('blocks[2].inline[2].style', 'sesame');
 	});
 
 	it('block の id の重複を拒否する', () => {
