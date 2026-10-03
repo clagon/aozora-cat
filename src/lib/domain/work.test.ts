@@ -76,7 +76,8 @@ function valid() {
 					url: 'https://www.aozora.gr.jp/cards/001317/files/fig1317_01.png'
 				},
 				alt: '',
-				size: { width: 198, height: 198 }
+				size: { width: 198, height: 198 },
+				caption: [{ kind: 'text', text: '二十八葉橄欖冠の図' }]
 			},
 			{
 				kind: 'paragraph',
@@ -190,6 +191,33 @@ describe('parseWork', () => {
 		rejects('blocks[4].size.width', 0);
 		rejects('blocks[0].layout.chars', 1.5);
 		rejects('blocks[2].inline[0].text', '');
+	});
+
+	it('挿絵のキャプションを残し、欠けているものを拒否する', () => {
+		const r = parseWork(change('blocks[4].id', 'p4'));
+		expect(r.ok && r.work.blocks[4]).toMatchObject({
+			caption: [{ kind: 'text', text: '二十八葉橄欖冠の図' }]
+		});
+		rejects('blocks[4].caption', REMOVE);
+		rejects('blocks[4].caption[0].kind', 'html');
+	});
+
+	it('別の作品の図書カード・ファイルを来歴にしたものを拒否する', () => {
+		const other = 'https://www.aozora.gr.jp/cards/000148';
+		rejects('provenance.source.cardUrl', `${other}/card773.html`);
+		rejects('provenance.source.fileUrl', `${other}/files/773_14560.html`);
+		rejects(
+			'provenance.source.fileUrl',
+			'https://www.aozora.gr.jp/cards/000879/files/ruby_14545.zip'
+		);
+		// 先頭のゼロの有無は同じ作品として扱う。
+		const ok = parseWork(
+			change(
+				'provenance.source.cardUrl',
+				'https://www.aozora.gr.jp/cards/000879/card000092.html'
+			)
+		);
+		expect(ok.ok).toBe(true);
 	});
 
 	it('block の id の重複を拒否する', () => {

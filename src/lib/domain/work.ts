@@ -53,13 +53,14 @@ export type Block =
 			layout: Layout;
 			inline: Inline[];
 	  }
-	/** 挿絵だけの行。 */
+	/** 挿絵だけの行。caption は見えるキャプション（なければ空）で、alt（読み上げ用）とは別。 */
 	| {
 			kind: 'figure';
 			id: string;
 			image: ImageRef;
 			alt: string;
 			size: ImageSize;
+			caption: Inline[];
 	  }
 	| { kind: 'pageBreak'; style: PageBreakStyle };
 
@@ -308,8 +309,8 @@ function layout(v: unknown, path: string): Layout {
 function block(v: unknown, path: string): Block {
 	if (!isRec(v)) throw new Invalid(path, 'オブジェクトではありません');
 	const kind = v.kind;
-	const inlines = (r: Rec) =>
-		list(r, 'inline', path, (i, p) => inline(i, p, 1, false), true);
+	const inlines = (r: Rec, key = 'inline') =>
+		list(r, key, path, (i, p) => inline(i, p, 1, false), true);
 	if (kind === 'paragraph') {
 		const r = rec(v, path, ['kind', 'id', 'layout', 'inline']);
 		return {
@@ -330,13 +331,14 @@ function block(v: unknown, path: string): Block {
 		};
 	}
 	if (kind === 'figure') {
-		const r = rec(v, path, ['kind', 'id', 'image', 'alt', 'size']);
+		const r = rec(v, path, ['kind', 'id', 'image', 'alt', 'size', 'caption']);
 		return {
 			kind,
 			id: str(r, 'id', path),
 			image: imageRef(r.image, `${path}.image`),
 			alt: str(r, 'alt', path, true),
-			size: imageSize(r.size, `${path}.size`)
+			size: imageSize(r.size, `${path}.size`),
+			caption: inlines(r, 'caption')
 		};
 	}
 	if (kind === 'pageBreak') {
@@ -357,8 +359,9 @@ function person(v: unknown, path: string): Person {
 	};
 }
 
-const CARD_PATH = /^\/cards\/\d+\/card\d+\.html$/;
-const FILE_PATH = /^\/cards\/\d+\/files\/[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
+const CARD_PATH = /^\/cards\/\d+\/card(\d+)\.html$/;
+const FILE_PATH =
+	/^\/cards\/\d+\/files\/(\d+)_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
 
 function validDate(s: string): boolean {
 	const d = new Date(`${s}T00:00:00Z`);
@@ -369,7 +372,22 @@ function validDate(s: string): boolean {
 	);
 }
 
-function provenance(v: unknown, path: string): Provenance {
+/** 図書カードとファイルの URL が、この作品のものであることを確かめる。 */
+function ownUrl(
+	r: Rec,
+	key: string,
+	path: string,
+	pathname: RegExp,
+	workId: string
+): string {
+	const url = aozoraUrl(r, key, path, pathname);
+	const number = pathname.exec(new URL(url).pathname)?.[1];
+	if (number === undefined || Number(number) !== Number(workId))
+		throw new Invalid(`${path}.${key}`, '作品IDと異なる作品のURLです');
+	return url;
+}
+
+function provenance(v: unknown, path: string, workId: string): Provenance {
 	const r = rec(v, path, ['copyright', 'source', 'converter', 'bibliography']);
 	const copyright = rec(r.copyright, `${path}.copyright`, ['work']);
 	if (copyright.work !== 'なし')
@@ -390,8 +408,8 @@ function provenance(v: unknown, path: string): Provenance {
 	return {
 		copyright: { work: 'なし' },
 		source: {
-			cardUrl: aozoraUrl(source, 'cardUrl', sp, CARD_PATH),
-			fileUrl: aozoraUrl(source, 'fileUrl', sp, FILE_PATH),
+			cardUrl: ownUrl(source, 'cardUrl', sp, CARD_PATH, workId),
+			fileUrl: ownUrl(source, 'fileUrl', sp, FILE_PATH, workId),
 			upstreamUpdated
 		},
 		converter: {
@@ -443,7 +461,7 @@ export function parseWork(input: unknown): WorkResult {
 			title: str(r, 'title', '$'),
 			people: list(r, 'people', '$', person),
 			orthography: str(r, 'orthography', '$'),
-			provenance: provenance(r.provenance, '$.provenance'),
+			provenance: provenance(r.provenance, '$.provenance', id),
 			blocks
 		};
 		if (r.titleReading !== undefined)
