@@ -263,7 +263,7 @@ function aozoraUrl(
 }
 
 /** 外字は全作品で共有する /gaiji/ 配下、挿絵は作品の files ディレクトリ配下だけを許す。 */
-const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
+export const GAIJI_IMAGE = /^\/gaiji\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|gif)$/;
 const CARD_IMAGE =
 	/^\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|gif)$/;
 

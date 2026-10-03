@@ -671,6 +671,28 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		expect(r).toMatchObject({ ok: false, failure: { code: 'invalid-image' } });
 	});
 
+	it('注記・底本情報の中の外字も、画像の参照を確かめてから文字にする', () => {
+		const bad = [
+			'',
+			'https://evil.example/gaiji/a.png',
+			'javascript:alert(1)',
+			'../../../gaiji/a.svg',
+			'a.png'
+		];
+		for (const src of bad) {
+			const img = `<img src="${src}" alt="外字" class="gaiji" />`;
+			expect(
+				failure(`<span class="notes">［＃「${img}」］</span><br />`)?.code,
+				src
+			).toBe('invalid-image');
+			const r = convertXhtml(page('x<br />', '', `底本${img}<br />`), source);
+			expect(r, src).toMatchObject({
+				ok: false,
+				failure: { code: 'invalid-image' }
+			});
+		}
+	});
+
 	it('リンクの javascript: は、イベント属性がなくても実行につながるものとして記録する', () => {
 		const r = ok('<a href="javascript:alert(1)">リンク</a><br />');
 		const codes = r.diagnostics.map((d) => d.code);

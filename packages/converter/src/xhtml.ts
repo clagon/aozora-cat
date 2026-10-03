@@ -4,6 +4,7 @@ import { parse } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
 import {
 	EMPHASIS_MARKS,
+	GAIJI_IMAGE,
 	WORK_SCHEMA_VERSION,
 	parseWork
 } from '../../../src/lib/domain/work.ts';
@@ -308,6 +309,9 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	const gaijiText = (el: El): string => {
 		const alt = attr(el, 'alt') ?? '';
 		if (alt === '') fail('invalid-image', '外字の説明（alt）がありません', el);
+		// 説明文を信頼する前に、画像の参照も本文の外字と同じ規則で確かめる。
+		if (!GAIJI_IMAGE.test(new URL(resolve(el)).pathname))
+			fail('invalid-image', '外字の画像が /gaiji/ の外にあります', el);
 		return alt;
 	};
 
