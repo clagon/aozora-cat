@@ -288,7 +288,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	 * 注記の文字列。文字・外字の画像（説明文）・ルビだけを許し、ほかの要素は失敗させる。
 	 * 底本との差異を引用する注記にはルビが入るので、青空文庫の記法（親文字《読み》）で残す。
 	 */
-	const noteText = (el: El): string =>
+	const noteText = (el: El, inRuby = false): string =>
 		el.childNodes
 			.map((child): string => {
 				if (isText(child)) return plainText(child);
@@ -300,13 +300,16 @@ function convert(html: string, source: WorkSource): ConvertResult {
 						'注記の中に文字以外があります',
 						child
 					);
+				if (inRuby)
+					fail('unsupported-construct', 'ルビの中にルビがあります', child);
 				const { rb, rt } = rubyParts(child);
-				return `${noteText(rb)}《${noteText(rt)}》`;
+				return `${noteText(rb, true)}《${noteText(rt, true)}》`;
 			})
 			.join('');
 
 	/** 文字へ平らにする外字の説明。説明（alt）がなければ、文字を消さずに失敗させる。 */
 	const gaijiText = (el: El): string => {
+		attrs(el, ['class', 'src', 'alt']);
 		const alt = attr(el, 'alt') ?? '';
 		if (alt === '') fail('invalid-image', '外字の説明（alt）がありません', el);
 		// 説明文を信頼する前に、画像の参照も本文の外字と同じ規則で確かめる。
@@ -418,6 +421,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				rt = child;
 			} else if (isEl(child) && child.tagName === 'rp') {
 				attrs(child, []);
+				if (child.childNodes.some((c) => !isText(c)))
+					fail('unsupported-construct', 'rp に文字以外が入っています', child);
 				if (!/^[（）()]*$/.test(plainText(child)))
 					fail('unsupported-construct', 'rp に括弧以外の文字があります', child);
 			} else if (isEl(child)) {
@@ -755,10 +760,8 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
 				attrs(node, ['href']);
 				collect(node.childNodes);
-			} else if (isEl(node) && isGaiji(node)) {
-				attrs(node, ['class', 'src', 'alt']);
-				current += gaijiText(node);
-			} else if (isEl(node))
+			} else if (isEl(node) && isGaiji(node)) current += gaijiText(node);
+			else if (isEl(node))
 				fail(
 					'unknown-element',
 					`底本情報の中の未知の要素 <${node.tagName}>`,

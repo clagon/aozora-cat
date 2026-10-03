@@ -693,6 +693,32 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		}
 	});
 
+	it('rp の中の要素、注記の中の入れ子のルビを失敗にし、注記の外字の属性も記録する', () => {
+		for (const rp of [
+			'<img src="a.png" alt="（" />',
+			'<script>alert(1)</script>',
+			'<b>（</b>'
+		])
+			expect(
+				failure(`<ruby><rb>漢</rb><rp>${rp}</rp><rt>かん</rt></ruby>`)?.code,
+				rp
+			).toBe('unsupported-construct');
+		expect(
+			failure(
+				'<span class="notes">［＃「<ruby><rb><ruby><rb>漢</rb><rt>かん</rt></ruby></rb><rt>x</rt></ruby>」］</span>'
+			)?.code
+		).toBe('unsupported-construct');
+		const r = ok(
+			`<span class="notes">［＃「${gaijiImg.replace('/>', 'onerror="x()" />')}」］</span>あ<br />`
+		);
+		expect(
+			r.diagnostics.some(
+				(d) =>
+					d.code === 'active-content-removed' && d.message.includes('onerror')
+			)
+		).toBe(true);
+	});
+
 	it('リンクの javascript: は、イベント属性がなくても実行につながるものとして記録する', () => {
 		const r = ok('<a href="javascript:alert(1)">リンク</a><br />');
 		const codes = r.diagnostics.map((d) => d.code);
