@@ -519,6 +519,11 @@ export function parseWork(input: unknown): WorkResult {
 		] as const) {
 			if (r[key] !== undefined) work[key] = str(r, key, '$');
 		}
+		if (work.subtitleReading !== undefined && work.subtitle === undefined)
+			throw new Invalid(
+				'$.subtitleReading',
+				'副題がない作品に副題の読みは付けられません'
+			);
 		return { ok: true, work };
 	} catch (e) {
 		if (e instanceof Invalid)
