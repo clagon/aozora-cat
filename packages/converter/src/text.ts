@@ -81,7 +81,8 @@ const HEADINGS: Record<string, HeadingLevel> = {
 type Unit =
 	| { k: 'ch'; c: string }
 	| { k: 'bar' }
-	| { k: 'node'; n: Inline; plain: string; kanji: boolean };
+	/** d は入れ子の深さ。葉は0、包むたびに1ずつ増える。 */
+	| { k: 'node'; n: Inline; plain: string; kanji: boolean; d: number };
 
 type Token =
 	| { t: 'text'; s: string; col: number }
@@ -244,6 +245,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				k: 'node',
 				plain: '※',
 				kanji: true,
+				d: 0,
 				n: {
 					kind: 'gaiji',
 					description: `※(${inner})`,
@@ -276,6 +278,14 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			`［＃${inner}］`
 		);
 	}
+
+	/** 包んだときの入れ子の深さ。スキーマの上限を超える入れ子は、再帰で読む前に止める。 */
+	const nest = (units: Unit[], n: number, col: number): number => {
+		const d = 1 + Math.max(0, ...units.map((u) => (u.k === 'node' ? u.d : 0)));
+		if (d > 7)
+			fail('unsupported-construct', '注記の入れ子が深すぎます', n, col);
+		return d;
+	};
 
 	/** 入れ子の中まで、指定した種類のノードがあるか。 */
 	const hasKind = (nodes: Inline[], kinds: string[]): boolean =>
@@ -413,6 +423,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 							k: 'node',
 							plain: '',
 							kanji: false,
+							d: 0,
 							n: { kind: 'note', text: `［＃${next.s}］` }
 						}
 					);
@@ -444,6 +455,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 					k: 'node',
 					plain: baseUnits.map(plainOf).join(''),
 					kanji: false,
+					d: nest(baseUnits, n, tok.col),
 					n: { kind: 'ruby', base, reading: tok.s }
 				});
 				barAt = -1;
@@ -496,7 +508,12 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				// 見出し（後ろから指す形）: 行の本文全体が対象。
 				let m = inner.match(/^「(.+)」は(大見出し|中見出し|小見出し)$/);
 				if (m) {
-					if (plainText(units) !== m[1] || units.length === 0)
+					// 行の本文の全体が対象。画像や注記など文字にならないものが混じっていれば、対象ではない。
+					if (
+						plainText(units) !== m[1] ||
+						units.length === 0 ||
+						units.some((u) => plainOf(u) === '')
+					)
 						fail(
 							'unsupported-construct',
 							'行の途中の見出しは扱えません',
@@ -515,6 +532,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 						k: 'node',
 						plain: '',
 						kanji: false,
+						d: 0,
 						n: { kind: 'image', image: img.image, alt: img.alt, size: img.size }
 					});
 					continue;
@@ -556,6 +574,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 						k: 'node',
 						plain: '',
 						kanji: false,
+						d: 0,
 						n: { kind: 'note', text: where }
 					});
 					continue;
@@ -606,6 +625,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 						k: 'node',
 						plain: inner2.map(plainOf).join(''),
 						kanji: false,
+						d: nest(inner2, n, col),
 						n: make(children)
 					});
 					continue;
@@ -701,6 +721,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			k: 'node',
 			plain: got,
 			kanji: false,
+			d: nest(taken, n, col),
 			n: make(toInline(taken, n))
 		});
 	}

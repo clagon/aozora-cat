@@ -470,6 +470,11 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'unknown-notation'
 		],
 		[
+			'画像を含む行の後ろから指す見出し',
+			'章［＃図（fig92_01.png、横1×縦1）入る］［＃「章」は中見出し］',
+			'unsupported-construct'
+		],
+		[
 			'範囲外の面区点の外字',
 			'あ※［＃x、第9水準9-99-99］い',
 			'unknown-notation'
@@ -604,6 +609,24 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			expect(f?.location).toMatch(/^L\d+/);
 		});
 	}
+
+	it('深い入れ子や、同じ対象への注記の繰り返しは、例外にせず失敗として返す', () => {
+		const depth = 5000;
+		const nested =
+			'｜' +
+			'［＃太字］'.repeat(depth) +
+			'漢' +
+			'［＃太字終わり］'.repeat(depth) +
+			'《かん》';
+		expect(failure(nested)?.code).toBe('unsupported-construct');
+		const repeated = '強' + '［＃「強」は太字］'.repeat(depth);
+		expect(failure(repeated)?.code).toBe('unsupported-construct');
+		// 浅い入れ子は通る。
+		expect(
+			ok('［＃太字］［＃割り注］強［＃割り注終わり］［＃太字終わり］').work
+				.blocks
+		).toHaveLength(1);
+	});
 
 	it('区切り線や底本情報がないファイルは失敗する', () => {
 		const noDash = convertText('蜘蛛の糸\n本文\n底本：x\n', source);
