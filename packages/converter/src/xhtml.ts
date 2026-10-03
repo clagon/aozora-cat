@@ -4,6 +4,7 @@ import { parse } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
 import {
 	EMPHASIS_MARKS,
+	hasVisible,
 	isGaijiImageUrl,
 	WORK_SCHEMA_VERSION,
 	parseWork
@@ -495,10 +496,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 		const { rb, rt } = rubyParts(el);
 		const base = onlyInline(inlines(rb.childNodes, true), rb);
 		const reading = plainText(rt);
-		const visibleBase = base.some(
-			(b) => b.kind !== 'text' || b.text.trim() !== ''
-		);
-		if (!visibleBase || reading.trim() === '')
+		if (!hasVisible(base) || reading.trim() === '')
 			fail('unsupported-construct', 'ルビの親文字または読みが空です', el);
 		return [{ kind: 'ruby', base, reading }];
 	}

@@ -251,6 +251,11 @@ describe('parseWork', () => {
 		rejects('blocks[2].inline[1].reading', '　');
 		rejects(
 			'blocks[2].inline[1].base',
+			[{ kind: 'strong', children: [{ kind: 'text', text: ' ' }] }],
+			'$.blocks[2].inline[1].base'
+		);
+		rejects(
+			'blocks[2].inline[1].base',
 			[{ kind: 'text', text: ' ' }],
 			'$.blocks[2].inline[1].base'
 		);

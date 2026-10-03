@@ -187,6 +187,17 @@ function str(r: Rec, key: string, path: string, allowEmpty = false): string {
 	return v;
 }
 
+/** 見える文字（または外字・画像）を含むか。装飾の中も調べる。注記は表示しないので数えない。 */
+export function hasVisible(nodes: Inline[]): boolean {
+	return nodes.some((n) => {
+		if (n.kind === 'text') return n.text.trim() !== '';
+		if (n.kind === 'note') return false;
+		if (n.kind === 'gaiji' || n.kind === 'image') return true;
+		if (n.kind === 'ruby') return hasVisible(n.base);
+		return hasVisible(n.children);
+	});
+}
+
 /** 空白だけではない文字列。外字の説明のように、見えない値では代わりにならないものに使う。 */
 function visible(r: Rec, key: string, path: string): string {
 	const v = str(r, key, path);
@@ -330,7 +341,7 @@ function inline(
 		const r = rec(v, path, ['kind', 'base', 'reading']);
 		const base = list(r, 'base', path, (b, p) => inline(b, p, depth + 1, true));
 		// 親文字が空白だけでは、ルビを付ける対象がない。
-		if (!base.some((b) => b.kind !== 'text' || b.text.trim() !== ''))
+		if (!hasVisible(base))
 			throw new Invalid(`${path}.base`, '親文字に見える文字がありません');
 		return {
 			kind,
