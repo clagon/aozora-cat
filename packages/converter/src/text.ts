@@ -277,6 +277,15 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		);
 	}
 
+	/** 入れ子の中まで、指定した種類のノードがあるか。 */
+	const hasKind = (nodes: Inline[], kinds: string[]): boolean =>
+		nodes.some(
+			(n) =>
+				kinds.includes(n.kind) ||
+				(n.kind === 'ruby' && hasKind(n.base, kinds)) ||
+				('children' in n && hasKind(n.children, kinds))
+		);
+
 	const plainOf = (u: Unit): string =>
 		u.k === 'ch' ? u.c : u.k === 'node' ? u.plain : '';
 
@@ -410,6 +419,9 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				} else units.push(gaijiUnit(next.s, n, next.col));
 			} else if (tok.t === 'ruby') {
 				if (isBlank(tok.s)) fail('ruby-base', 'ルビの読みが空です', n, tok.col);
+				// 読みは文字だけを扱う。注記・外字・｜が入っていたら、文字のままにせず止める。
+				if (/［＃|｜|※/.test(tok.s))
+					fail('ruby-base', 'ルビの読みに注記や記号があります', n, tok.col);
 				let start: number;
 				if (barAt >= 0) {
 					start = barAt;
@@ -426,10 +438,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				}
 				const baseUnits = units.slice(barAt >= 0 ? start + 1 : start);
 				const base = toInline(baseUnits, n);
-				if (
-					base.length === 0 ||
-					base.some((b) => b.kind === 'ruby' || b.kind === 'image')
-				)
+				if (base.length === 0 || hasKind(base, ['ruby', 'image']))
 					fail('ruby-base', 'ルビの親文字が正しくありません', n, tok.col);
 				units.splice(start, units.length - start, {
 					k: 'node',
@@ -674,6 +683,8 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		let start = units.length;
 		let got = '';
 		while (start > 0 && got.length < target.length) {
+			// 画像や注記など、対象の文字にならないものをまたいで探さない。
+			if (plainOf(units[start - 1]) === '') break;
 			start--;
 			got = plainOf(units[start]) + got;
 		}
