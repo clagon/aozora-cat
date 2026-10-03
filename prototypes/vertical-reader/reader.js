@@ -233,6 +233,28 @@ export function createReader(viewport) {
 		if (remember) state.anchor = anchor();
 	}
 
+	/**
+	 * ページ送り。ページは縦に積まれているが、見せる動きは横にする。
+	 * 縦書きは左へ進むので、次ページは左から、前ページは右からスライドインする。
+	 * @param {1 | -1} direction
+	 */
+	function turn(direction) {
+		const before = state.page;
+		show(before + direction);
+		if (state.page === before || state.mode !== 'vertical') return;
+		// ponytail: 旧ページは重ねず、新ページだけを動かす。出ていく側も動かすなら複製で重ねる。
+		const duration = parseFloat(
+			getComputedStyle(viewport).getPropertyValue('--motion-duration-standard')
+		);
+		stage.animate(
+			[
+				{ transform: `translateX(${-direction * 24}px)`, opacity: 0.4 },
+				{ transform: 'none', opacity: 1 }
+			],
+			{ duration: duration || 0, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
+		);
+	}
+
 	// 縦書きのステージは clip にして、横書き側の慣性スクロールが残っても動かないようにする。
 	// 横書きはネイティブスクロールなので、利用者のスクロールで変わったページと位置を取り込む。
 	// show() 自身の scrollTop 更新は同じページ番号になるため、細かい位置の基準は上書きしない。
@@ -313,8 +335,8 @@ export function createReader(viewport) {
 			layout();
 			restore(state.anchor);
 		},
-		next: () => show(state.page + 1),
-		prev: () => show(state.page - 1),
+		next: () => turn(1),
+		prev: () => turn(-1),
 		goTo: show,
 		anchor,
 		restore,

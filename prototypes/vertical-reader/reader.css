@@ -40,7 +40,6 @@ body {
 	padding: 0;
 	overflow-wrap: anywhere;
 	line-break: strict;
-	transition: transform var(--motion-duration-standard) var(--motion-ease);
 }
 
 /* 縦書き。行（ブロック）は右から左へ積まれる。 */
