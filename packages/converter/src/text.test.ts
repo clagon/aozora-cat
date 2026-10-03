@@ -133,6 +133,19 @@ describe('convertText: 本文', () => {
 		});
 	});
 
+	it('｜で始まりを示したルビは、記号や〔〕の親文字でも受け取る（推測が要らない）', () => {
+		const { work } = ok('あ｜＋《プラス》い｜〔語〕《ご》う');
+		expect(work.blocks[0]).toMatchObject({
+			inline: [
+				text('あ'),
+				{ kind: 'ruby', base: [text('＋')], reading: 'プラス' },
+				text('い'),
+				{ kind: 'ruby', base: [text('〔語〕')], reading: 'ご' },
+				text('う')
+			]
+		});
+	});
+
 	it('外字: JIS X 0213 の面区点は画像、U+ は文字、ページと行だけの注記は※と注記で残す', () => {
 		const { work } = ok(
 			[
