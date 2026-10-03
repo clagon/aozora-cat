@@ -662,6 +662,33 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		expect(convertXhtml(page(notes), source).ok).toBe(false);
 	});
 
+	it('説明のない外字は、注記・底本情報でも文字を消さずに失敗させる', () => {
+		const bare = '<img src="../../../gaiji/1-87/1-87-71.png" class="gaiji" />';
+		expect(
+			failure(`<span class="notes">［＃「${bare}」］</span><br />`)?.code
+		).toBe('invalid-image');
+		const r = convertXhtml(page('x<br />', '', `底本${bare}<br />`), source);
+		expect(r).toMatchObject({ ok: false, failure: { code: 'invalid-image' } });
+	});
+
+	it('リンクの javascript: は、イベント属性がなくても実行につながるものとして記録する', () => {
+		const r = ok('<a href="javascript:alert(1)">リンク</a><br />');
+		const codes = r.diagnostics.map((d) => d.code);
+		expect(codes).toContain('link-removed');
+		expect(
+			r.diagnostics.some(
+				(d) => d.code === 'active-content-removed' && d.message.includes('href')
+			)
+		).toBe(true);
+		// 通常のリンクは、実行につながるものとして記録しない。
+		const plain = ok('<a href="https://x.example/">リンク</a><br />');
+		expect(
+			plain.diagnostics.some(
+				(d) => d.code === 'active-content-removed' && d.message.includes('href')
+			)
+		).toBe(false);
+	});
+
 	it('要素が非常に多くても、例外にせず結果を返す', () => {
 		const wide = '<span class="futoji">あ</span>'.repeat(150000);
 		for (const wrap of [

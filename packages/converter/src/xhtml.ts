@@ -106,6 +106,17 @@ const HEADINGS: Record<string, { tag: string; level: HeadingLevel }> = {
 
 const AOZORA_ORIGIN = 'https://www.aozora.gr.jp';
 
+/** URL を取る属性。値のスキームを調べる。 */
+const URL_ATTRS = [
+	'href',
+	'src',
+	'action',
+	'formaction',
+	'data',
+	'xlink:href',
+	'poster'
+];
+
 /** 木の深さの上限。公式のファイルは十数段で、これを超えるのは異常な入力。 */
 const MAX_DOM_DEPTH = 64;
 
@@ -152,10 +163,16 @@ function convert(html: string, source: WorkSource): ConvertResult {
 	/** 意味を持つ属性以外は捨てる。イベント属性や javascript: は、捨てたことを記録する。 */
 	const attrs = (el: El, allowed: string[]) => {
 		for (const { name, value } of el.attrs) {
-			if (allowed.includes(name) || ['id', 'lang', 'xml:lang'].includes(name))
-				continue;
+			// 意味を持つ属性でも、実行につながる値は先に調べて記録する。
 			const active =
-				name.startsWith('on') || /^\s*(javascript|data|vbscript):/i.test(value);
+				name.startsWith('on') ||
+				(URL_ATTRS.includes(name) &&
+					/^\s*(javascript|data|vbscript):/i.test(value));
+			if (
+				!active &&
+				(allowed.includes(name) || ['id', 'lang', 'xml:lang'].includes(name))
+			)
+				continue;
 			note(
 				active ? 'active-content-removed' : 'attribute-dropped',
 				`属性 ${name} を取り除きました`,
@@ -275,7 +292,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			.map((child): string => {
 				if (isText(child)) return plainText(child);
 				if (!isEl(child)) return '';
-				if (isGaiji(child)) return plainText(child);
+				if (isGaiji(child)) return gaijiText(child);
 				if (child.tagName !== 'ruby')
 					return fail(
 						'unsupported-construct',
@@ -286,6 +303,13 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				return `${noteText(rb)}《${noteText(rt)}》`;
 			})
 			.join('');
+
+	/** 文字へ平らにする外字の説明。説明（alt）がなければ、文字を消さずに失敗させる。 */
+	const gaijiText = (el: El): string => {
+		const alt = attr(el, 'alt') ?? '';
+		if (alt === '') fail('invalid-image', '外字の説明（alt）がありません', el);
+		return alt;
+	};
 
 	/** 画像の参照を、変換元ファイルを基準に絶対URLへ解決し、青空文庫の外を拒否する。 */
 	const resolve = (el: El): string => {
@@ -725,7 +749,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			else if (isEl(node) && node.tagName === 'a') {
 				note('link-removed', 'リンクを取り除き、文字だけを残しました', node);
 				collect(node.childNodes);
-			} else if (isEl(node) && isGaiji(node)) current += plainText(node);
+			} else if (isEl(node) && isGaiji(node)) current += gaijiText(node);
 			else if (isEl(node))
 				fail(
 					'unknown-element',
