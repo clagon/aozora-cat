@@ -238,8 +238,20 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		const unicode = parts
 			.map((p) => p.match(/^U\+([0-9A-F]{4,6})$/)?.[1])
 			.find(Boolean);
-		if (unicode)
-			return { k: 'ch', c: String.fromCodePoint(parseInt(unicode, 16)) };
+		if (unicode) {
+			const cp = parseInt(unicode, 16);
+			// 正しい Unicode のスカラー値で、表示される文字のものだけを文字にする。
+			const valid = cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff);
+			if (valid && !isBlank(String.fromCodePoint(cp)))
+				return { k: 'ch', c: String.fromCodePoint(cp) };
+			return fail(
+				'unknown-notation',
+				'外字の U+ の値が文字として使えません',
+				n,
+				col,
+				`［＃${inner}］`
+			);
+		}
 		return fail(
 			'unknown-notation',
 			'読めない外字の注記です',

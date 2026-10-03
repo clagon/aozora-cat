@@ -451,6 +451,17 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 		['注記だけの行の未知の注記', '［＃ふしぎな注記］', 'unknown-notation'],
 		['空の注記', 'あ［＃］', 'unknown-notation'],
 		['読めない外字', 'あ※［＃ふしぎ］い', 'unknown-notation'],
+		[
+			'範囲外の U+ の外字',
+			'あ※［＃「x」、U+110000、1-1］い',
+			'unknown-notation'
+		],
+		[
+			'サロゲートの U+ の外字',
+			'あ※［＃「x」、U+D800、1-1］い',
+			'unknown-notation'
+		],
+		['見えない U+ の外字', 'あ※［＃「x」、U+200B、1-1］い', 'unknown-notation'],
 		['外字の注記がない※', 'あ※［＃］', 'unknown-notation'],
 		['注記が閉じていない', 'あ［＃傍点', 'unclosed-notation'],
 		['ルビが閉じていない', 'あ漢《かん', 'unclosed-notation'],
