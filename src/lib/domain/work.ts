@@ -13,7 +13,13 @@ export type EmphasisStyle = 'sesame' | 'underline';
 
 /** 子を持つだけの装飾。strong=太字、frame=罫囲み、warichu=割注、horizontal=横組み、tcy=縦中横。 */
 export type ContainerKind =
-	'strong' | 'frame' | 'warichu' | 'superscript' | 'horizontal' | 'tcy';
+	| 'strong'
+	| 'frame'
+	| 'warichu'
+	| 'superscript'
+	| 'subscript'
+	| 'horizontal'
+	| 'tcy';
 
 export type Inline =
 	| { kind: 'text'; text: string }
@@ -246,6 +252,7 @@ const CONTAINERS: readonly ContainerKind[] = [
 	'frame',
 	'warichu',
 	'superscript',
+	'subscript',
 	'horizontal',
 	'tcy'
 ];
@@ -414,9 +421,9 @@ function person(v: unknown, path: string): Person {
 	return p;
 }
 
-const CARD_PATH = /^\/cards\/\d+\/card(\d+)\.html$/;
+const CARD_PATH = /^\/cards\/(\d+)\/card(\d+)\.html$/;
 const FILE_PATH =
-	/^\/cards\/\d+\/files\/(\d+)_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
+	/^\/cards\/(\d+)\/files\/(\d+)_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
 
 function validDate(s: string): boolean {
 	const d = new Date(`${s}T00:00:00Z`);
@@ -427,19 +434,19 @@ function validDate(s: string): boolean {
 	);
 }
 
-/** 図書カードとファイルの URL が、この作品のものであることを確かめる。 */
+/** 図書カードとファイルの URL が、この作品のものであることを確かめ、人物ディレクトリも返す。 */
 function ownUrl(
 	r: Rec,
 	key: string,
 	path: string,
 	pathname: RegExp,
 	workId: string
-): string {
+): { url: string; person: number } {
 	const url = aozoraUrl(r, key, path, pathname);
-	const number = pathname.exec(new URL(url).pathname)?.[1];
+	const [, person, number] = pathname.exec(new URL(url).pathname) ?? [];
 	if (number === undefined || Number(number) !== Number(workId))
 		throw new Invalid(`${path}.${key}`, '作品IDと異なる作品のURLです');
-	return url;
+	return { url, person: Number(person) };
 }
 
 function provenance(v: unknown, path: string, workId: string): Provenance {
@@ -460,11 +467,18 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 	const version = str(converter, 'version', cp);
 	if (!/^\d+\.\d+\.\d+$/.test(version))
 		throw new Invalid(`${cp}.version`, 'x.y.z 形式が必要です');
+	const card = ownUrl(source, 'cardUrl', sp, CARD_PATH, workId);
+	const file = ownUrl(source, 'fileUrl', sp, FILE_PATH, workId);
+	if (card.person !== file.person)
+		throw new Invalid(
+			`${sp}.fileUrl`,
+			'図書カードと異なる人物のディレクトリです'
+		);
 	return {
 		copyright: { work: 'なし' },
 		source: {
-			cardUrl: ownUrl(source, 'cardUrl', sp, CARD_PATH, workId),
-			fileUrl: ownUrl(source, 'fileUrl', sp, FILE_PATH, workId),
+			cardUrl: card.url,
+			fileUrl: file.url,
 			upstreamUpdated
 		},
 		converter: {

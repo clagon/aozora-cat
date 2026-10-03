@@ -79,7 +79,8 @@ function valid() {
 						},
 						alt: '数式',
 						size: { width: 44, height: 43 }
-					}
+					},
+					{ kind: 'subscript', children: [{ kind: 'text', text: '2' }] }
 				]
 			},
 			{ kind: 'pageBreak', style: 'page' },
@@ -234,6 +235,11 @@ describe('parseWork', () => {
 		rejects(
 			'provenance.source.fileUrl',
 			'https://www.aozora.gr.jp/cards/000879/files/ruby_14545.zip'
+		);
+		// 作品番号が合っていても、図書カードとファイルの人物ディレクトリが違えば拒否する。
+		rejects(
+			'provenance.source.fileUrl',
+			'https://www.aozora.gr.jp/cards/000148/files/92_14545.html'
 		);
 		// 先頭のゼロの有無は同じ作品として扱う。
 		const ok = parseWork(
