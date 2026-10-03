@@ -839,7 +839,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 			converter: { version: CONVERTER_VERSION, path: 'xhtml' },
 			bibliography: bibliography
 				.map((l) => l.replace(/\s+$/, ''))
-				.filter((l) => l !== '')
+				.filter((l) => !isBlank(l))
 		},
 		blocks
 	};

@@ -151,6 +151,16 @@ describe('parseWork', () => {
 		rejects('provenance', REMOVE);
 		rejects('provenance.source', REMOVE);
 		rejects('provenance.bibliography', []);
+		rejects(
+			'provenance.bibliography',
+			['\u200b'],
+			'$.provenance.bibliography[0]'
+		);
+		rejects(
+			'provenance.bibliography',
+			['底本', '　'],
+			'$.provenance.bibliography[1]'
+		);
 		rejects('provenance.converter.path', REMOVE);
 	});
 

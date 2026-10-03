@@ -571,8 +571,8 @@ function provenance(v: unknown, path: string, workId: string): Provenance {
 		},
 		converter: { version, path: via },
 		bibliography: list(r, 'bibliography', path, (line, p) => {
-			if (typeof line !== 'string' || line === '')
-				throw new Invalid(p, '空でない文字列が必要です');
+			if (typeof line !== 'string' || isBlank(line))
+				throw new Invalid(p, '見える文字のある文字列が必要です');
 			return line;
 		})
 	};

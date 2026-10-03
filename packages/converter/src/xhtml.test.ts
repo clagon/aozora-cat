@@ -919,6 +919,22 @@ describe('convertXhtml: 未知の構成は閉じて失敗する', () => {
 		).toBe(false);
 	});
 
+	it('見える文字のない底本情報は、来歴がないものとして失敗にする', () => {
+		for (const bib of ['', '　<br />', '\u200b<br />\u2060\ufe0f<br />']) {
+			const r = convertXhtml(page('x<br />', '', bib), source);
+			expect(r, JSON.stringify(bib)).toMatchObject({
+				ok: false,
+				failure: { code: 'schema', location: '$.provenance.bibliography' }
+			});
+		}
+		// 見えない行は捨て、見える行だけを残す。
+		const kept = convertXhtml(
+			page('x<br />', '', '\u200b<br />入力：A<br />'),
+			source
+		);
+		expect(kept.ok && kept.work.provenance.bibliography).toEqual(['入力：A']);
+	});
+
 	it('底本情報の罫線は行の区切りで、前後の記載事項を連結しない', () => {
 		const r = convertXhtml(
 			page('x<br />', '', '<hr />底本：A<hr />入力：B<br />校正：C'),
