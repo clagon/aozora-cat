@@ -572,6 +572,11 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'あ※［＃「x」、U+D800、1-1］い',
 			'unknown-notation'
 		],
+		[
+			'U+ が複数ある外字',
+			'あ※［＃「x」、U+4E00、U+4E01、1-1］い',
+			'unknown-notation'
+		],
 		['見えない U+ の外字', 'あ※［＃「x」、U+200B、1-1］い', 'unknown-notation'],
 		['外字の注記がない※', 'あ※［＃］', 'unknown-notation'],
 		['注記が閉じていない', 'あ［＃傍点', 'unclosed-notation'],

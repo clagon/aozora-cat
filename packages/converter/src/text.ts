@@ -260,9 +260,19 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				}
 			};
 		}
-		const unicode = parts
-			.map((p) => p.match(/^U\+([0-9A-F]{4,6})$/)?.[1])
-			.find(Boolean);
+		const unicodes = parts.flatMap((p) => {
+			const u = p.match(/^U\+([0-9A-F]{4,6})$/)?.[1];
+			return u ? [u] : [];
+		});
+		if (unicodes.length > 1)
+			return fail(
+				'unknown-notation',
+				'外字の U+ の値が複数あります',
+				n,
+				col,
+				`［＃${inner}］`
+			);
+		const unicode = unicodes[0];
 		if (unicode) {
 			const cp = parseInt(unicode, 16);
 			// 正しい Unicode のスカラー値で、表示される文字のものだけを文字にする。
