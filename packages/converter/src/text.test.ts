@@ -315,6 +315,29 @@ describe('convertText: 本文', () => {
 		]);
 	});
 
+	it('範囲の終わりを省いた字下げの続けて指定と、字上げの終わりを読む', () => {
+		const { work } = ok(
+			[
+				'［＃ここから２字下げ］',
+				'あ',
+				'［＃ここから４字下げ］',
+				'い',
+				'［＃ここから２字下げ、折り返して３字下げ］',
+				'う',
+				'［＃ここで字下げ終わり］',
+				'［＃ここから地から３字上げ］',
+				'え',
+				'［＃ここで字上げ終わり］'
+			].join('\n')
+		);
+		expect(work.blocks.map((b) => b.kind === 'paragraph' && b.layout)).toEqual([
+			{ kind: 'indent', chars: 2 },
+			{ kind: 'indent', chars: 4 },
+			{ kind: 'hanging', indent: 3, first: 1 },
+			{ kind: 'end', inset: 3 }
+		]);
+	});
+
 	it('見出しの3つの大きさと、始まり・終わりの形・後ろから指す形', () => {
 		const { work } = ok(
 			[
@@ -537,7 +560,7 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 		],
 		[
 			'範囲の入れ子',
-			'［＃ここから２字下げ］\n［＃ここから３字下げ］',
+			'［＃ここから２字下げ］\n［＃ここから地付き］',
 			'unsupported-construct'
 		],
 		[
@@ -621,6 +644,10 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 		expect(failure(nested)?.code).toBe('unsupported-construct');
 		const repeated = '強' + '［＃「強」は太字］'.repeat(depth);
 		expect(failure(repeated)?.code).toBe('unsupported-construct');
+		// 範囲を取り囲む注記の内側が非常に長くても、例外にならない。
+		expect(ok('［＃太字］' + '強'.repeat(200000) + '［＃太字終わり］').ok).toBe(
+			true
+		);
 		// 浅い入れ子は通る。
 		expect(
 			ok('［＃太字］［＃割り注］強［＃割り注終わり］［＃太字終わり］').work

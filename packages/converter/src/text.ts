@@ -281,7 +281,9 @@ function convert(text: string, source: WorkSource): ConvertResult {
 
 	/** 包んだときの入れ子の深さ。スキーマの上限を超える入れ子は、再帰で読む前に止める。 */
 	const nest = (units: Unit[], n: number, col: number): number => {
-		const d = 1 + Math.max(0, ...units.map((u) => (u.k === 'node' ? u.d : 0)));
+		let d = 0;
+		for (const u of units) if (u.k === 'node' && u.d > d) d = u.d;
+		d += 1;
 		if (d > 7)
 			fail('unsupported-construct', '注記の入れ子が深すぎます', n, col);
 		return d;
@@ -730,7 +732,12 @@ function convert(text: string, source: WorkSource): ConvertResult {
 	function rangeNote(inner: string, n: number, col: number): boolean {
 		const where = `［＃${inner}］`;
 		const start = (kind: 'indent' | 'end' | 'hanging', layout: Layout) => {
-			if (range)
+			// 字下げどうしは、終わりを省いて続けて指定できる。
+			const sameIndent =
+				range &&
+				kind !== 'end' &&
+				(range.kind === 'indent' || range.kind === 'hanging');
+			if (range && !sameIndent)
 				fail('unsupported-construct', '範囲が重なっています', n, col, where);
 			range = { kind, layout, where: at(n, col, where) };
 		};
@@ -769,7 +776,8 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		if (m) return (start('end', { kind: 'end', inset: num(m[1]) }), true);
 		const ends: Record<string, 'indent' | 'end'> = {
 			ここで字下げ終わり: 'indent',
-			ここで地付き終わり: 'end'
+			ここで地付き終わり: 'end',
+			ここで字上げ終わり: 'end'
 		};
 		const endKind =
 			ends[inner] ??
