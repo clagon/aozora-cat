@@ -136,6 +136,13 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			'記号の説明を囲む区切り線がありません',
 			'header'
 		);
+	// 1本目の区切り線のすぐ下が、記号の説明の見出しでなければ、見出し部ではない。
+	if (lines[dashes[0] + 1]?.trim() !== '【テキスト中に現れる記号について】')
+		throw new Failure(
+			'missing-section',
+			'記号の説明の見出し（【テキスト中に現れる記号について】）がありません',
+			at(dashes[0])
+		);
 	const bodyStart = dashes[1] + 1;
 
 	// 本文の終わり。［＃本文終わり］があればその後ろ、なければ「底本：」から後ろが記載事項。
@@ -192,6 +199,8 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				flush();
 				out.push({ t: 'ruby', s: line.slice(i + 1, j), col: i });
 				i = j + 1;
+			} else if (line[i] === '》') {
+				fail('unclosed-notation', 'ルビの始まりのない終わりがあります', n, i);
 			} else if (line[i] === '｜') {
 				flush();
 				out.push({ t: 'bar', col: i });
@@ -263,7 +272,8 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			return {
 				k: 'node',
 				plain: '※',
-				kanji: true,
+				// 記号や仮名の外字を親文字に推測しないよう、漢字の区（2面と1面の14区以降）だけを漢字にする。
+				kanji: Number(men) === 2 || Number(ku) >= 14,
 				d: 0,
 				n: {
 					kind: 'gaiji',

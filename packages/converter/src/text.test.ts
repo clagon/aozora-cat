@@ -578,6 +578,12 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'あ※［＃x、U+4E00、1-1-1］い',
 			'unknown-notation'
 		],
+		['ルビの終わりだけ', '漢《かん》》', 'unclosed-notation'],
+		[
+			'記号の外字を親文字にするルビ',
+			'※［＃感嘆符疑問符、1-8-78］《かんたんふ》',
+			'ruby-base'
+		],
 		['アクセント分解', "あ〔e'tiquette〕い", 'unknown-notation'],
 		[
 			'U+ が複数ある外字',
@@ -713,6 +719,17 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 		).toHaveLength(1);
 	});
 
+	it('記号の説明の見出しがなければ、区切り線が2本あっても見出し部とは見なさない', () => {
+		const r = convertText(
+			`本文A\n${DASH}\n本文B\n${DASH}\n本文C\n底本：x\n`,
+			source
+		);
+		expect(r).toMatchObject({
+			ok: false,
+			failure: { code: 'missing-section' }
+		});
+	});
+
 	it('区切り線や底本情報がないファイルは失敗する', () => {
 		const noDash = convertText('蜘蛛の糸\n本文\n底本：x\n', source);
 		expect(noDash).toMatchObject({
@@ -720,7 +737,7 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			failure: { code: 'missing-section' }
 		});
 		const noFooter = convertText(
-			`題\n\n${DASH}\n説明\n${DASH}\n本文\n`,
+			`題\n\n${DASH}\n【テキスト中に現れる記号について】\n${DASH}\n本文\n`,
 			source
 		);
 		expect(noFooter).toMatchObject({
@@ -736,7 +753,7 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 		);
 		expect(r.ok).toBe(true);
 		const blank = convertText(
-			`題\n\n${DASH}\n説明\n${DASH}\n本文\n［＃本文終わり］\n​\n　\n`,
+			`題\n\n${DASH}\n【テキスト中に現れる記号について】\n${DASH}\n本文\n［＃本文終わり］\n​\n　\n`,
 			source
 		);
 		expect(blank).toMatchObject({
