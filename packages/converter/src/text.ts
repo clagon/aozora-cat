@@ -366,6 +366,16 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			});
 			return;
 		}
+		// アクセント分解（〔e'tiquette〕）は、元の文字に直す規則を持たないので、文字のまま残さず止める。
+		const accent = raw.match(/〔[^〔〕]*[A-Za-z][^〔〕]*〕/);
+		if (accent)
+			fail(
+				'unknown-notation',
+				'アクセント分解の記法は扱えません',
+				n,
+				accent.index,
+				accent[0]
+			);
 		const tokens = tokenize(raw, n);
 		const first = tokens[0];
 		const only = tokens.length === 1 && first.t === 'note' ? first : null;

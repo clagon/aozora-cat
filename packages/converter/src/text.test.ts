@@ -578,6 +578,7 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'あ※［＃x、U+4E00、1-1-1］い',
 			'unknown-notation'
 		],
+		['アクセント分解', "あ〔e'tiquette〕い", 'unknown-notation'],
 		[
 			'U+ が複数ある外字',
 			'あ※［＃「x」、U+4E00、U+4E01、1-1］い',

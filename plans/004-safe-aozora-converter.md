@@ -124,7 +124,9 @@ constructs below until a fixture requires them and a schema decision is made:
   them against what it actually fetched.
 - Text path only: ruby whose base would have to be guessed (an implicit base
   that is a symbol such as `＋《…》`, an accent bracket `〔…〕《…》`, or an image
-  note; an explicit `｜` base of plain text is fine, an image base is not), `［＃大きな文字］` and `［＃小さな文字］`
+  note; an explicit `｜` base of plain text is fine, an image base is not), accent
+  decomposition ranges (a `〔…〕` that contains ASCII letters, such as
+  `〔e'tiquette〕`), `［＃大きな文字］` and `［＃小さな文字］`
   ranges, and the block forms of 横組み and 罫囲み. For the approved works the
   text path yields blocks identical to the XHTML path for the same six works
   (checked locally against the official files); 黒死館殺人事件 fails on the
