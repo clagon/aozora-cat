@@ -244,7 +244,11 @@ describe('本文の参照', () => {
 			'http://www.aozora.gr.jp/cards/000879/files/1_1.html',
 			'https://www.aozora.gr.jp/cards/000999/files/1_1.html',
 			'https://www.aozora.gr.jp/cards/000879/files/1_1.zip',
-			'https://www.aozora.gr.jp/cards/000879/files/../1_1.html'
+			'https://www.aozora.gr.jp/cards/000879/files/../1_1.html',
+			// 同じ人物の別の作品のファイル。
+			'https://www.aozora.gr.jp/cards/000879/files/2_1.html',
+			'https://www.aozora.gr.jp/cards/000879/files/10_1.html',
+			'https://www.aozora.gr.jp/cards/000879/files/1x_1.html'
 		]) {
 			const c = parse(base('000001', { 'XHTML/HTMLファイルURL': url }));
 			expect(c.works[0].xhtml, url).toBeUndefined();
@@ -253,6 +257,16 @@ describe('本文の参照', () => {
 				{ id: '000001', code: 'external-body-url', message: expect.any(String) }
 			]);
 		}
+	});
+
+	it('ファイル名に作品の番号だけの形（1.html）も、先頭の番号が合えば使う', () => {
+		const w = one(
+			base('000001', {
+				'XHTML/HTMLファイルURL':
+					'https://www.aozora.gr.jp/cards/000879/files/1.html'
+			})
+		);
+		expect(w.xhtml?.url).toMatch(/files\/1\.html$/);
 	});
 
 	it('符号化方式や日付が読めない本文は使わない', () => {

@@ -66,7 +66,9 @@ Decisions made in this step (`packages/importer`):
   but `selectBodies` never lists them, so no body request is made for them, and
   the search catalog leaves them out.
 - A body URL is used only when it is an https `www.aozora.gr.jp/cards/<person>/files/`
-  file of the same person directory, with `.html` for XHTML and `.zip` for
+  file of the same person directory whose leading number is this work's ID (the
+  official names are `<id>.html`, `<id>_<n>.html` and `<id>_ruby_<n>.zip`; every
+  real URL into the official files satisfies this), with `.html` for XHTML and `.zip` for
   text, a valid date, and a ShiftJIS or UTF-8 encoding. Anything else (such as
   an external site) is dropped with a note, and the other path is still used.
   Fetch order is XHTML first, then text.

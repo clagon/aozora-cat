@@ -56,7 +56,7 @@ const ROLES: Record<string, Person['role']> = {
 const ENCODINGS = ['ShiftJIS', 'UTF-8'];
 const CARD = /^https:\/\/www\.aozora\.gr\.jp\/cards\/(\d{6})\/card(\d+)\.html$/;
 const FILE =
-	/^https:\/\/www\.aozora\.gr\.jp\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(html|zip)$/;
+	/^https:\/\/www\.aozora\.gr\.jp\/cards\/(\d{6})\/files\/(\d+)(?:_[A-Za-z0-9_.-]+)?\.(html|zip)$/;
 const DATE_SHAPE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** 暦にある日付か。形だけでなく、2025-02-31 のような存在しない日も除く。 */
@@ -205,6 +205,7 @@ function toWork(id: string, g: Row[]): Made {
 		const url = get(`${p}URL`);
 		const ref = bodyRef(
 			path,
+			id,
 			card[1],
 			url,
 			get(`${p}最終更新日`),
@@ -241,9 +242,10 @@ function toWork(id: string, g: Row[]): Made {
 	return { work, notes };
 }
 
-/** 本文の参照。公式の cards/ 配下の、同じ人物の files/ だけを認める。 */
+/** 本文の参照。公式の cards/ 配下の、同じ人物の files/ にある、この作品のファイルだけを認める。 */
 function bodyRef(
 	path: 'xhtml' | 'text',
+	id: string,
 	person: string,
 	url: string,
 	updated: string,
@@ -252,7 +254,8 @@ function bodyRef(
 	if (url === '') return { why: 'no-body-url' };
 	const m = FILE.exec(url);
 	const ext = path === 'xhtml' ? 'html' : 'zip';
-	if (!m || m[1] !== person || m[2] !== ext)
+	// ファイル名の先頭の番号が、この作品のものでなければ、別の作品の本文を取り違える。
+	if (!m || m[1] !== person || Number(m[2]) !== Number(id) || m[3] !== ext)
 		return { why: 'external-body-url' };
 	if (!isDate(updated)) return { why: 'invalid-body-date' };
 	if (!ENCODINGS.includes(encoding)) return { why: 'unsupported-encoding' };
