@@ -8,3 +8,6 @@ playwright-report/
 .env
 .env.*
 !.env.example
+
+# 取り込みの中間物・梱包した成果物（生成物はGitに含めない）
+.corpus/
