@@ -219,9 +219,21 @@ function convert(text: string, source: WorkSource): ConvertResult {
 	/** 外字の注記から、画像か文字を作る。 */
 	function gaijiUnit(inner: string, n: number, col: number): Unit {
 		const parts = inner.split('、');
-		const code = parts
-			.at(-1)
-			?.match(/^(?:第([34])水準)?(\d)-(\d{1,2})-(\d{1,2})$/);
+		const JIS = /^(?:第([34])水準)?(\d)-(\d{1,2})-(\d{1,2})$/;
+		const unicodes = parts.flatMap((p) => {
+			const u = p.match(/^U\+([0-9A-F]{4,6})$/)?.[1];
+			return u ? [u] : [];
+		});
+		// 面区点や U+ の指定は、ちょうど1つ。複数あれば、どれを使うか決められない。
+		if (unicodes.length + parts.filter((p) => JIS.test(p)).length > 1)
+			return fail(
+				'unknown-notation',
+				'外字の面区点や U+ の指定が複数あります',
+				n,
+				col,
+				`［＃${inner}］`
+			);
+		const code = parts.at(-1)?.match(JIS);
 		if (code) {
 			const [level, plane, row, cell] = [
 				code[1],
@@ -260,18 +272,6 @@ function convert(text: string, source: WorkSource): ConvertResult {
 				}
 			};
 		}
-		const unicodes = parts.flatMap((p) => {
-			const u = p.match(/^U\+([0-9A-F]{4,6})$/)?.[1];
-			return u ? [u] : [];
-		});
-		if (unicodes.length > 1)
-			return fail(
-				'unknown-notation',
-				'外字の U+ の値が複数あります',
-				n,
-				col,
-				`［＃${inner}］`
-			);
 		const unicode = unicodes[0];
 		if (unicode) {
 			const cp = parseInt(unicode, 16);
@@ -724,13 +724,18 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		what: string
 	) {
 		let start = units.length;
-		let got = '';
-		while (start > 0 && got.length < target.length) {
+		// 前に足すたびに文字列を作り直さないよう、後ろから集めて最後に1度だけつなぐ。
+		const pieces: string[] = [];
+		let length = 0;
+		while (start > 0 && length < target.length) {
 			// 画像や注記など、対象の文字にならないものをまたいで探さない。
 			if (!targetable(units[start - 1])) break;
 			start--;
-			got = plainOf(units[start]) + got;
+			const piece = plainOf(units[start]);
+			pieces.push(piece);
+			length += piece.length;
 		}
+		const got = pieces.reverse().join('');
 		if (got !== target || start === units.length)
 			fail(
 				'unknown-notation',

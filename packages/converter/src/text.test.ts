@@ -572,6 +572,12 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'あ※［＃「x」、U+D800、1-1］い',
 			'unknown-notation'
 		],
+		['面区点が複数ある外字', 'あ※［＃x、1-1-1、1-2-2］い', 'unknown-notation'],
+		[
+			'面区点と U+ がある外字',
+			'あ※［＃x、U+4E00、1-1-1］い',
+			'unknown-notation'
+		],
 		[
 			'U+ が複数ある外字',
 			'あ※［＃「x」、U+4E00、U+4E01、1-1］い',
@@ -676,6 +682,13 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			expect(f?.location).toMatch(/^L\d+/);
 		});
 	}
+
+	it('とても長い対象の後ろから指す注記も、時間をかけずに処理する', () => {
+		const long = 'a'.repeat(300000);
+		const t0 = Date.now();
+		expect(ok(`${long}［＃「${long}」は太字］`).work.blocks).toHaveLength(1);
+		expect(Date.now() - t0).toBeLessThan(3000);
+	});
 
 	it('深い入れ子や、同じ対象への注記の繰り返しは、例外にせず失敗として返す', () => {
 		const depth = 5000;
