@@ -87,7 +87,10 @@ Decisions made in this step:
   (`exact`), the context found at exactly one place in the new work
   (`context`; ambiguous matches are never guessed), then the percentage
   (`percent`, the reader should tell the user that the position may have moved).
-  A corrupted saved value falls through to the percentage instead of throwing.
+  When the same text appears in several blocks, ids can be renumbered by an
+  insertion, so the twin nearest to the saved percentage is chosen and the
+  result is `context`, never `exact`. A corrupted saved value (missing or
+  wrongly typed fields) falls through to the percentage instead of throwing.
 - `serializeWork` validates and writes canonical JSON; `readWork` returns a typed
   failure for broken JSON, unsupported versions, or invalid works. There is
   only one schema version, so there is no migration between work versions yet.

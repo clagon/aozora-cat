@@ -39,13 +39,16 @@ export type Position = {
 	percent: number;
 };
 
-/** 位置を持つ block と、その文字列。 */
+/** 位置を持つ block と、その文字列、作品の先頭からの文字数（at）。 */
 function texts(work: Work) {
-	return work.blocks.flatMap((b) =>
-		b.kind === 'pageBreak' || b.kind === 'pageCenter'
-			? []
-			: [{ id: b.id, text: blockText(b) }]
-	);
+	let at = 0;
+	return work.blocks.flatMap((b) => {
+		if (b.kind === 'pageBreak' || b.kind === 'pageCenter') return [];
+		const text = blockText(b);
+		const t = { id: b.id, text, at };
+		at += text.length;
+		return [t];
+	});
 }
 
 /** 保存する位置を作る。block がない、または offset が範囲外なら null。 */
@@ -86,55 +89,84 @@ export type Restored = {
 	offset: number;
 };
 
-/** 更新後の作品で、保存した位置に当たる場所を求める。文字がなければ null。 */
-export function restorePosition(work: Work, saved: Position): Restored | null {
+/** 保存した値の項目。端末の保存領域から読むので、型は信用しない。 */
+function field(saved: unknown, key: string): unknown {
+	return typeof saved === 'object' && saved !== null
+		? Reflect.get(saved, key)
+		: undefined;
+}
+
+/**
+ * 更新後の作品で、保存した位置に当たる場所を求める。文字がなければ null。
+ * 保存した値は端末の保存領域から読むので、壊れていても例外にせず、割合へ回す。
+ */
+export function restorePosition(work: Work, saved: unknown): Restored | null {
 	const all = texts(work);
-	const same = all.find((t) => t.id === saved.blockId);
-	const needle = saved.before + saved.after;
-	// 端末に保存した値なので、壊れていても例外にせず、割合へ回す。
-	const sound =
-		Number.isInteger(saved.offset) &&
-		saved.offset >= saved.before.length &&
-		saved.before.length <= CONTEXT &&
-		saved.after.length <= CONTEXT;
-	if (
-		sound &&
-		same &&
-		saved.offset <= same.text.length &&
-		same.text.slice(saved.offset - saved.before.length, saved.offset) ===
-			saved.before &&
-		same.text.startsWith(saved.after, saved.offset)
-	)
-		return { how: 'exact', blockId: same.id, offset: saved.offset };
-
-	// 前後の文字がちょうど1か所に見つかるときだけ使う。複数あれば取り違えるので割合に任せる。
-	if (sound && needle.length >= MIN_CONTEXT) {
-		const found: Restored[] = [];
-		for (const t of all) {
-			for (
-				let i = t.text.indexOf(needle);
-				i >= 0 && found.length < 2;
-				i = t.text.indexOf(needle, i + 1)
-			)
-				found.push({
-					how: 'context',
-					blockId: t.id,
-					offset: i + saved.before.length
-				});
-			if (found.length > 1) break;
-		}
-		if (found.length === 1) return found[0];
-	}
-
+	const [blockId, offset, before, after, share] = [
+		'blockId',
+		'offset',
+		'before',
+		'after',
+		'percent'
+	].map((k) => field(saved, k));
+	const percent =
+		typeof share === 'number' && Number.isFinite(share) ? share : 0;
 	const total = all.reduce((sum, t) => sum + t.text.length, 0);
 	if (total === 0) return null;
-	const percent = Number.isFinite(saved.percent) ? saved.percent : 0;
-	const target = Math.min(total - 1, Math.max(0, Math.floor(percent * total)));
-	let acc = 0;
-	for (const t of all) {
-		if (target < acc + t.text.length)
-			return { how: 'percent', blockId: t.id, offset: target - acc };
-		acc += t.text.length;
+
+	if (
+		typeof blockId === 'string' &&
+		typeof offset === 'number' &&
+		Number.isInteger(offset) &&
+		typeof before === 'string' &&
+		typeof after === 'string' &&
+		offset >= before.length &&
+		before.length <= CONTEXT &&
+		after.length <= CONTEXT
+	) {
+		const same = all.find((t) => t.id === blockId);
+		if (
+			same &&
+			offset <= same.text.length &&
+			same.text.slice(offset - before.length, offset) === before &&
+			same.text.startsWith(after, offset)
+		) {
+			const twins = all.filter((t) => t.text === same.text);
+			if (twins.length === 1) return { how: 'exact', blockId, offset };
+			// 同じ内容の block が他にもあると、番号が付け替わって id が別の block を指すことがある。
+			// 保存した割合にいちばん近いものを選び、確かではないので exact にはしない。
+			const near = twins.reduce((a, b) =>
+				Math.abs(b.at / total - percent) < Math.abs(a.at / total - percent)
+					? b
+					: a
+			);
+			return { how: 'context', blockId: near.id, offset };
+		}
+
+		// 前後の文字がちょうど1か所に見つかるときだけ使う。複数あれば取り違えるので割合に任せる。
+		const needle = before + after;
+		if (needle.length >= MIN_CONTEXT) {
+			const found: Restored[] = [];
+			for (const t of all) {
+				for (
+					let i = t.text.indexOf(needle);
+					i >= 0 && found.length < 2;
+					i = t.text.indexOf(needle, i + 1)
+				)
+					found.push({
+						how: 'context',
+						blockId: t.id,
+						offset: i + before.length
+					});
+				if (found.length > 1) break;
+			}
+			if (found.length === 1) return found[0];
+		}
 	}
-	return null;
+
+	const target = Math.min(total - 1, Math.max(0, Math.floor(percent * total)));
+	const hit = all.find((t) => target < t.at + t.text.length);
+	return hit
+		? { how: 'percent', blockId: hit.id, offset: target - hit.at }
+		: null;
 }

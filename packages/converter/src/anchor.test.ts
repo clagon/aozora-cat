@@ -146,6 +146,20 @@ describe('読書位置の移行', () => {
 		expect(last).toMatchObject({ how: 'percent', blockId: ids(old)[3] });
 	});
 
+	it('同じ内容の段落が重なっていて番号が付け替わっても、取り違えず近い方を選ぶ（context）', () => {
+		const x = '同じ文が繰り返されます。同じ文が繰り返されます。';
+		const w = work(x, B, x);
+		const saved = save(w, 2, 5);
+		// 前に同じ段落を足すと、後ろの段落の id（-2）が、手前の段落へ付け替わる。
+		const edited = work(x, x, B, x);
+		expect(ids(edited)[1]).toBe(ids(w)[2]);
+		expect(restorePosition(edited, saved)).toEqual({
+			how: 'context',
+			blockId: ids(edited)[3],
+			offset: 5
+		});
+	});
+
 	it('壊れた保存値は例外にせず、割合に任せる', () => {
 		const broken: Position = {
 			blockId: ids(old)[0],
@@ -158,6 +172,27 @@ describe('読書位置の移行', () => {
 			how: 'percent',
 			offset: 0
 		});
+	});
+
+	it('保存領域から読んだ値の項目が欠けていても、型が違っても、例外にしない', () => {
+		const good = save(old, 1, 4);
+		const broken: unknown[] = [
+			{ ...good, before: null },
+			{ ...good, after: undefined },
+			{ ...good, offset: '4' },
+			{ ...good, blockId: 7 },
+			{ ...good, percent: '0.5' },
+			{},
+			null,
+			'x'
+		];
+		for (const b of broken) {
+			expect(() => restorePosition(old, b)).not.toThrow();
+			expect(restorePosition(old, b)).not.toBeNull();
+		}
+		expect(restorePosition(old, { ...good, before: null })?.how).toBe(
+			'percent'
+		);
 	});
 
 	it('文字のない作品には戻せない', () => {
