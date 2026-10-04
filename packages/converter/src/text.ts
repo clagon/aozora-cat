@@ -33,7 +33,7 @@ class Failure extends Error {
 const AOZORA = 'https://www.aozora.gr.jp';
 const KANJI = /[㐀-䶿一-鿿豈-﫿々〆〇ヶ\u{20000}-\u{3FFFF}]/u;
 /** 欧文字（アクセント付き・ギリシャ文字・キリル文字を含む）。ルビの親文字として、続く並びを1つに数える。 */
-const ALPHA = /[A-Za-zＡ-Ｚａ-ｚ\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/u;
+const ALPHA = /[\p{L}&&[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}]]/v;
 
 const BREAKS: Record<string, PageBreakStyle> = {
 	改ページ: 'page',
@@ -220,12 +220,20 @@ function convert(text: string, source: WorkSource): ConvertResult {
 	/** 外字の注記から、画像か文字を作る。 */
 	function gaijiUnit(inner: string, n: number, col: number): Unit {
 		const parts = inner.split('、');
-		const code = parts.at(-1)?.match(/^(?:第\d水準)?(\d)-(\d{1,2})-(\d{1,2})$/);
+		const code = parts
+			.at(-1)
+			?.match(/^(?:第([34])水準)?(\d)-(\d{1,2})-(\d{1,2})$/);
 		if (code) {
-			const [plane, row, cell] = [code[1], code[2], code[3]].map(Number);
+			const [level, plane, row, cell] = [
+				code[1],
+				code[2],
+				code[3],
+				code[4]
+			].map((v) => (v === undefined ? 0 : Number(v)));
 			// JIS X 0213 の面は1か2、区と点はそれぞれ1〜94。
 			if (
 				(plane !== 1 && plane !== 2) ||
+				(level !== 0 && level !== plane + 2) ||
 				row < 1 ||
 				row > 94 ||
 				cell < 1 ||
@@ -238,7 +246,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 					col,
 					`［＃${inner}］`
 				);
-			const [, men, ku, ten] = code;
+			const [, , men, ku, ten] = code;
 			const k = ku.padStart(2, '0');
 			const t = ten.padStart(2, '0');
 			return {
