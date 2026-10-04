@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { EMPHASIS_MARKS, WORK_SCHEMA_VERSION, parseWork } from './work.ts';
+import {
+	EMPHASIS_MARKS,
+	WORK_SCHEMA_VERSION,
+	parseWork,
+	readWork,
+	serializeWork
+} from './work.ts';
 
 const gaiji = 'https://www.aozora.gr.jp/gaiji/1-87/1-87-71.png';
 
@@ -453,5 +459,30 @@ describe('parseWork', () => {
 		for (const input of [null, 'x', 1, [], undefined]) {
 			expect(parseWork(input).ok).toBe(false);
 		}
+	});
+});
+
+describe('serializeWork / readWork', () => {
+	it('直列化して読み戻すと、同じ作品になり、2回目の直列化も同じ文字列になる', () => {
+		const r = parseWork(valid());
+		if (!r.ok) throw new Error('fixture が不正');
+		const json = serializeWork(r.work);
+		const back = readWork(json);
+		expect(back).toEqual({ ok: true, work: r.work });
+		expect(back.ok && serializeWork(back.work)).toBe(json);
+	});
+
+	it('将来のバージョンと、壊れたJSON・検証に通らない作品は、例外にせず拒否する', () => {
+		const future = JSON.stringify({ ...(valid() as object), schemaVersion: 2 });
+		expect(readWork(future)).toEqual({
+			ok: false,
+			error: { code: 'unsupported-version', version: 2 }
+		});
+		expect(readWork('{')).toMatchObject({
+			ok: false,
+			error: { code: 'invalid' }
+		});
+		expect(readWork('null')).toMatchObject({ ok: false });
+		expect(() => serializeWork(change('id', 'x') as never)).toThrow();
 	});
 });

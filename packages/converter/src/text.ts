@@ -14,6 +14,7 @@ import type {
 	Layout,
 	PageBreakStyle
 } from '../../../src/lib/domain/work.ts';
+import { withStableIds } from './ids.ts';
 import { CONVERTER_VERSION } from './types.ts';
 import type {
 	ConversionFailure,
@@ -897,7 +898,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			converter: { version: CONVERTER_VERSION, path: 'text' },
 			bibliography: bibliography.map((l) => l.replace(/\s+$/, ''))
 		},
-		blocks
+		blocks: withStableIds(blocks)
 	};
 	const checked = parseWork(candidate);
 	if (!checked.ok) {

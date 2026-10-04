@@ -72,6 +72,28 @@ that rejects unsupported future versions cleanly.
 **Verify**: fixture edits prove paragraph/character restoration and percentage
 fallback behavior required by the product decision.
 
+Decisions made in this step:
+
+- A block id is `p-` plus 12 hex characters of a SHA-256 over the block kind and
+  its position text (ruby readings and notes excluded, images counted as one
+  character). Identical blocks get an occurrence suffix (`-2`); an empty line
+  also mixes in the previous block so blank lines do not collide. Inserting or
+  deleting other blocks therefore never changes an id. `CONVERTER_VERSION` is
+  1.1.0 because the id scheme changed; `schemaVersion` stays 1.
+- A saved position is `{ blockId, offset, before, after, percent }`: up to 24
+  characters of context on each side, within the block, and the share of the
+  whole work. Offsets count UTF-16 units, like the Plan 003 prototype.
+- `restorePosition` tries, in order: the same block with matching context
+  (`exact`), the context found at exactly one place in the new work
+  (`context`; ambiguous matches are never guessed), then the percentage
+  (`percent`, the reader should tell the user that the position may have moved).
+  A corrupted saved value falls through to the percentage instead of throwing.
+- `serializeWork` validates and writes canonical JSON; `readWork` returns a typed
+  failure for broken JSON, unsupported versions, or invalid works. There is
+  only one schema version, so there is no migration between work versions yet.
+- Known limit: an edit inside the 24 characters of context around the saved
+  offset falls back to the percentage.
+
 ## Test plan
 
 - Happy cases for every allowed semantic node.

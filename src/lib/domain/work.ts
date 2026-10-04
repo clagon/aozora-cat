@@ -678,3 +678,24 @@ export function parseWork(input: unknown): WorkResult {
 		throw e;
 	}
 }
+
+/** 保存・配信する形（JSON）にする。検証を通した新しいオブジェクトから作るので、項目の順が決まっている。 */
+export function serializeWork(work: Work): string {
+	const r = parseWork(work);
+	if (!r.ok) throw new Error('作品の形が正しくありません');
+	return JSON.stringify(r.work);
+}
+
+/** 保存・配信された作品を読む。壊れたJSONや将来のバージョンは、例外にせず結果として返す。 */
+export function readWork(json: string): WorkResult {
+	let input: unknown;
+	try {
+		input = JSON.parse(json);
+	} catch {
+		return {
+			ok: false,
+			error: { code: 'invalid', path: '$', message: 'JSONとして読めません' }
+		};
+	}
+	return parseWork(input);
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { convertText } from './text.ts';
 import { convertXhtml } from './xhtml.ts';
+import { CONVERTER_VERSION } from './types.ts';
 import type { WorkSource } from './types.ts';
 
 const source: WorkSource = {
@@ -55,18 +56,28 @@ describe('convertText: 本文', () => {
 			`\n［＃８字下げ］［＃中見出し］一［＃中見出し終わり］\n\nある日の事。御釈迦様《おしゃかさま》は｜極楽の蓮池《はすいけ》を、${gaijiNote}陀多《かんだた》と。`
 		);
 		expect(work.blocks).toEqual([
-			{ kind: 'paragraph', id: 'p1', layout: { kind: 'none' }, inline: [] },
+			{
+				kind: 'paragraph',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
+				layout: { kind: 'none' },
+				inline: []
+			},
 			{
 				kind: 'heading',
-				id: 'p2',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
 				level: 'medium',
 				layout: { kind: 'indent', chars: 8 },
 				inline: [text('一')]
 			},
-			{ kind: 'paragraph', id: 'p3', layout: { kind: 'none' }, inline: [] },
 			{
 				kind: 'paragraph',
-				id: 'p4',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
+				layout: { kind: 'none' },
+				inline: []
+			},
+			{
+				kind: 'paragraph',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
 				layout: { kind: 'none' },
 				inline: [
 					text('ある日の事。'),
@@ -90,7 +101,7 @@ describe('convertText: 本文', () => {
 				fileUrl: source.fileUrl,
 				upstreamUpdated: '2014-09-17'
 			},
-			converter: { version: '1.0.0', path: 'text' },
+			converter: { version: CONVERTER_VERSION, path: 'text' },
 			bibliography: [
 				'底本：「蜘蛛の糸・杜子春」新潮文庫、新潮社',
 				'入力：作業者'

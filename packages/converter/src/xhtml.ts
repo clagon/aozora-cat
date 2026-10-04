@@ -19,6 +19,7 @@ import type {
 	Layout,
 	PageBreakStyle
 } from '../../../src/lib/domain/work.ts';
+import { withStableIds } from './ids.ts';
 import { CONVERTER_VERSION } from './types.ts';
 import type {
 	ConversionFailure,
@@ -841,7 +842,7 @@ function convert(html: string, source: WorkSource): ConvertResult {
 				.map((l) => l.replace(/\s+$/, ''))
 				.filter((l) => !isBlank(l))
 		},
-		blocks
+		blocks: withStableIds(blocks)
 	};
 	// 最後の関門。ここを通らない出力は返さない。
 	const checked = parseWork(candidate);
