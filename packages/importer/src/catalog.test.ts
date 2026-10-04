@@ -68,6 +68,15 @@ describe('parseCatalog', () => {
 		expect(() => parseCatalog('')).toThrow(CatalogFormatError);
 	});
 
+	it('同じ列が重複していれば、どちらが正か決められないので止める（著作権フラグが食い違っても通さない）', () => {
+		const header = [...HEADER, '作品著作権フラグ'];
+		const rows = `${header.join(',')}\n${header.map((c, i) => quote(i === header.length - 1 ? 'なし' : (base('000001', { 作品著作権フラグ: 'あり' })[c] ?? ''))).join(',')}`;
+		expect(() => parseCatalog(rows)).toThrow(CatalogFormatError);
+		expect(() =>
+			parseCatalog(csv([base('000001')], [...HEADER, '新しい列', '新しい列']))
+		).toThrow(CatalogFormatError);
+	});
+
 	it('列数が見出しと合わない行があれば、ずれた読みをせず止める', () => {
 		expect(() => parseCatalog(`${HEADER.join(',')}\n"1","2"`)).toThrow(
 			CatalogFormatError

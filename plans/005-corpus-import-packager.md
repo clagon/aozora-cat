@@ -52,8 +52,9 @@ Decisions made in this step (`packages/importer`):
   roles are kept. Names and readings join surname and given name without a
   separator, as in the converter's `WorkSource`.
 - The pinned schema is the set of columns the importer reads
-  (`REQUIRED_COLUMNS`). A missing column, or a row whose column count differs
-  from the header, stops the whole import (`CatalogFormatError`). A new unread
+  (`REQUIRED_COLUMNS`). A missing column, a repeated column (the authoritative value
+  would be ambiguous), or a row whose column count differs from the header,
+  stops the whole import (`CatalogFormatError`). A new unread
   column only adds a note, so a harmless upstream addition does not block the
   weekly run; reviewers see the note.
 - A work whose value cannot be trusted is rejected with a reason instead of

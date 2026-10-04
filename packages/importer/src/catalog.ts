@@ -73,6 +73,10 @@ export function parseCatalog(csv: string): ParsedCatalog {
 	const missing = REQUIRED_COLUMNS.filter((c) => !header.includes(c));
 	if (missing.length > 0)
 		throw new CatalogFormatError(`必要な列がありません: ${missing.join('、')}`);
+	// 同じ列が2つあると、どちらが正か決められない（特に著作権フラグ）ので、止める。
+	const repeated = header.filter((c, i) => header.indexOf(c) !== i);
+	if (repeated.length > 0)
+		throw new CatalogFormatError(`列が重複しています: ${repeated.join('、')}`);
 	const col = new Map(header.map((c, i) => [c, i]));
 	const notes: Diagnostic[] = [];
 	for (const c of header)
