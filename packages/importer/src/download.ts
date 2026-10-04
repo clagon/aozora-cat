@@ -114,7 +114,10 @@ export async function fetchCatalog(
 		maxBytes: CATALOG_LIMITS.download,
 		...rest
 	});
-	const entries = readZip(zip, { maxEntryBytes: CATALOG_LIMITS.csv });
+	const entries = readZip(zip, {
+		maxEntryBytes: CATALOG_LIMITS.csv,
+		maxEntries: 1
+	});
 	const names = [...entries.keys()].filter((n) => n.endsWith('.csv'));
 	if (entries.size !== 1 || names.length !== 1)
 		throw new FetchError('status', 'zip の中身が、CSV 1つではありません');

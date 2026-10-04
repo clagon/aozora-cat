@@ -58,7 +58,7 @@ Decisions made in this step (`packages/importer`):
   weekly run; reviewers see the note.
 - A work whose value cannot be trusted is rejected with a reason instead of
   being guessed: an unknown copyright flag, an unknown role, a malformed ID or
-  date, a missing title or orthography, a card URL that does not match the
+  a date that is not on the calendar (such as 2025-02-31), a missing title or orthography, a card URL that does not match the
   work, or rows that disagree. Rejected works are never shipped.
 - Only the work copyright flag decides distribution. Works flagged `あり` stay
   in the parsed catalog (the Step 4 diff needs them to report rights changes)
@@ -72,8 +72,8 @@ Decisions made in this step (`packages/importer`):
 - Downloads use a per-attempt timeout, a byte limit while streaming, retries
   with doubling delay for 429, 5xx, network errors and timeouts only, no
   redirects, and a `User-Agent` naming this project. The catalog zip is opened
-  with bounded entry size and count, a CRC check, and a requirement of exactly
-  one UTF-8 `.csv`.
+  with one entry at most, a bound on the total expanded size checked before any
+  entry is inflated, a CRC check, and a requirement of exactly one UTF-8 `.csv`.
 - Measured against the official CSV of 2026-08-22 (checked locally; not
   committed): 17,840 works, 488 flagged `あり`, 17,352 flagged `なし`, of which
   7 have no usable body, leaving 17,345 fetch targets, all XHTML first. 198

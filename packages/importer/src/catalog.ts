@@ -57,7 +57,15 @@ const ENCODINGS = ['ShiftJIS', 'UTF-8'];
 const CARD = /^https:\/\/www\.aozora\.gr\.jp\/cards\/(\d{6})\/card(\d+)\.html$/;
 const FILE =
 	/^https:\/\/www\.aozora\.gr\.jp\/cards\/(\d{6})\/files\/[A-Za-z0-9_.-]+\.(html|zip)$/;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_SHAPE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 暦にある日付か。形だけでなく、2025-02-31 のような存在しない日も除く。 */
+const isDate = (v: string): boolean => {
+	const m = DATE_SHAPE.exec(v);
+	if (!m) return false;
+	const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+	return d.toISOString().startsWith(v);
+};
 
 export function parseCatalog(csv: string): ParsedCatalog {
 	const rows = parseCsv(csv.replace(/^﻿/, ''));
@@ -166,7 +174,7 @@ function toWork(id: string, g: Row[]): Made {
 	if (!card || card[2] !== String(Number(id)))
 		return reject('invalid-field', '図書カードURLが作品と合いません');
 	for (const c of ['公開日', '最終更新日'])
-		if (!DATE.test(get(c)))
+		if (!isDate(get(c)))
 			return reject('invalid-field', `${c}が日付ではありません`);
 
 	// 同じ人物・役割の行は1つにまとめ、人物と役割はすべて残す。
@@ -242,7 +250,7 @@ function bodyRef(
 	const ext = path === 'xhtml' ? 'html' : 'zip';
 	if (!m || m[1] !== person || m[2] !== ext)
 		return { why: 'external-body-url' };
-	if (!DATE.test(updated)) return { why: 'invalid-body-date' };
+	if (!isDate(updated)) return { why: 'invalid-body-date' };
 	if (!ENCODINGS.includes(encoding)) return { why: 'unsupported-encoding' };
 	return { url, updated, encoding: encoding as BodyRef['encoding'] };
 }

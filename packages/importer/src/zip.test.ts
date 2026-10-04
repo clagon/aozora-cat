@@ -85,6 +85,24 @@ describe('readZip', () => {
 		rejects([{ name: 'a', data: 'x'.repeat(100000), rawSize: 10 }]);
 	});
 
+	it('展開後の合計が上限を超えるzipは、1つずつは小さくても、展開する前に拒否する', () => {
+		const big = 'x'.repeat(600);
+		rejects([
+			{ name: 'a', data: big },
+			{ name: 'b', data: big }
+		]);
+		// 合計を広げれば通る。
+		expect(
+			readZip(
+				zip([
+					{ name: 'a', data: big },
+					{ name: 'b', data: big }
+				]),
+				{ maxEntryBytes: 1000, maxTotalBytes: 2000 }
+			).size
+		).toBe(2);
+	});
+
 	it('zip でないもの・途中で切れたもの・ファイルが多すぎるものを拒否する', () => {
 		expect(() =>
 			readZip(new TextEncoder().encode('PK not a zip'), limit)

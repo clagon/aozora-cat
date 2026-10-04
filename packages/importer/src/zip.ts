@@ -5,11 +5,16 @@ import { crc32, inflateRawSync } from 'node:zlib';
 
 export class ZipError extends Error {}
 
-export type ZipOptions = { maxEntryBytes: number; maxEntries?: number };
+export type ZipOptions = {
+	maxEntryBytes: number;
+	maxEntries?: number;
+	/** 展開後の合計の上限。省略すると maxEntryBytes と同じ（全体で1ファイルぶん）。 */
+	maxTotalBytes?: number;
+};
 
 export function readZip(
 	bytes: Uint8Array,
-	{ maxEntryBytes, maxEntries = 64 }: ZipOptions
+	{ maxEntryBytes, maxEntries = 64, maxTotalBytes = maxEntryBytes }: ZipOptions
 ): Map<string, Uint8Array> {
 	const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	const bad = (why: string): never => {
@@ -33,6 +38,7 @@ export function readZip(
 	if (count === 0xffff || at === 0xffffffff) bad('zip64 は扱えません');
 
 	const out = new Map<string, Uint8Array>();
+	let total = 0;
 	for (let n = 0; n < count; n++) {
 		if (at + 46 > bytes.length || v.getUint32(at, true) !== 0x02014b50)
 			bad('中央ディレクトリが壊れています');
@@ -55,6 +61,8 @@ export function readZip(
 			bad('zip64 は扱えません');
 		if (rawSize > maxEntryBytes) bad(`${name} が大きすぎます`);
 		if (name.endsWith('/')) continue;
+		total += rawSize;
+		if (total > maxTotalBytes) bad('展開後の合計が大きすぎます');
 		if (out.has(name)) bad(`${name} が重複しています`);
 		if (local + 30 > bytes.length || v.getUint32(local, true) !== 0x04034b50)
 			bad('ローカルヘッダが壊れています');

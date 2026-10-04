@@ -150,6 +150,8 @@ describe('parseCatalog', () => {
 		rejectedAs('invalid-field', base('000001', { 作品名: '' }));
 		rejectedAs('invalid-field', base('000001', { 文字遣い種別: '' }));
 		rejectedAs('invalid-field', base('000001', { 公開日: '2020/01/01' }));
+		rejectedAs('invalid-field', base('000001', { 公開日: '2025-02-31' }));
+		rejectedAs('invalid-field', base('000001', { 最終更新日: '2026-99-99' }));
 		rejectedAs('invalid-field', base('000001', { 人物ID: 'x' }));
 		rejectedAs('invalid-field', base('000001', { 姓: '', 名: '' }));
 		// 図書カードのURLが、作品ID・公式の場所と合わない。
@@ -252,6 +254,12 @@ describe('本文の参照', () => {
 			bodies({ 'XHTML/HTMLファイル符号化方式': '' }).xhtml
 		).toBeUndefined();
 		expect(bodies({ テキストファイル最終更新日: '' }).text).toBeUndefined();
+		expect(
+			bodies({ テキストファイル最終更新日: '2025-02-31' }).text
+		).toBeUndefined();
+		expect(
+			bodies({ テキストファイル最終更新日: '2024-02-29' }).text
+		).toBeDefined();
 		expect(
 			bodies({ 'XHTML/HTMLファイル符号化方式': 'UTF-8' }).xhtml?.encoding
 		).toBe('UTF-8');
