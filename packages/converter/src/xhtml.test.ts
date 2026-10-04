@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { convertXhtml } from './xhtml.ts';
+import { CONVERTER_VERSION } from './types.ts';
 import type { WorkSource } from './types.ts';
 
 const source: WorkSource = {
@@ -91,18 +92,28 @@ describe('convertXhtml: 本文', () => {
 ある日の事でございます。御釈迦様は極楽の<ruby><rb>蓮池</rb><rp>（</rp><rt>はすいけ</rt><rp>）</rp></ruby>のふちを、${gaijiImg}陀多と云う男がいました。<br />
 `);
 		expect(work.blocks).toEqual([
-			{ kind: 'paragraph', id: 'p1', layout: { kind: 'none' }, inline: [] },
+			{
+				kind: 'paragraph',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
+				layout: { kind: 'none' },
+				inline: []
+			},
 			{
 				kind: 'heading',
-				id: 'p2',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
 				level: 'medium',
 				layout: { kind: 'indent', chars: 8 },
 				inline: [text('一')]
 			},
-			{ kind: 'paragraph', id: 'p3', layout: { kind: 'none' }, inline: [] },
 			{
 				kind: 'paragraph',
-				id: 'p4',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
+				layout: { kind: 'none' },
+				inline: []
+			},
+			{
+				kind: 'paragraph',
+				id: expect.stringMatching(/^p-[0-9a-f]{12}$/),
 				layout: { kind: 'none' },
 				inline: [
 					text('ある日の事でございます。御釈迦様は極楽の'),
@@ -124,7 +135,7 @@ describe('convertXhtml: 本文', () => {
 				fileUrl: source.fileUrl,
 				upstreamUpdated: '2014-09-17'
 			},
-			converter: { version: '1.0.0', path: 'xhtml' },
+			converter: { version: CONVERTER_VERSION, path: 'xhtml' },
 			bibliography: [
 				'底本：「蜘蛛の糸・杜子春」新潮文庫、新潮社',
 				'　　　1968（昭和43）年11月20日発行',
