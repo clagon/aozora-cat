@@ -31,6 +31,9 @@ export type FailureCode =
 	| 'unsupported-construct'
 	| 'invalid-layout'
 	| 'invalid-image'
+	| 'unknown-notation'
+	| 'unclosed-notation'
+	| 'ruby-base'
 	| 'schema';
 
 /** 変換を止めた理由。location は元ファイルの行・列と要素で、直す場所を示す。 */
