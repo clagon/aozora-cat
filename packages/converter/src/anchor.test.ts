@@ -137,6 +137,20 @@ describe('読書位置の移行', () => {
 		});
 	});
 
+	it('同じ文字でも種類が違う block は、同じ組として扱わない', () => {
+		const x = '同じ文字の段落と見出しです。同じ文字';
+		const heading = `${x}［＃「${x}」は中見出し］`;
+		const w = work(x, heading);
+		const saved = save(w, 1, 5);
+		// 見出しは変わっていないが、段落の方が保存した割合に近くなる並びにする。
+		const edited = work('あ'.repeat(50), x, 'い', heading);
+		expect(restorePosition(edited, saved)).toEqual({
+			how: 'exact',
+			blockId: ids(edited)[3],
+			offset: 5
+		});
+	});
+
 	it('割合から戻す位置は、保存した位置と1字もずれず、作品の終わりも末尾に戻る', () => {
 		const w = work(A, B);
 		const [first, second] = ids(w);

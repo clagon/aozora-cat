@@ -87,7 +87,8 @@ Decisions made in this step:
   (`exact`), the context found at exactly one place in the new work
   (`context`; ambiguous matches are never guessed), then the percentage
   (`percent`, the reader should tell the user that the position may have moved).
-  When the same text appears in several blocks, ids can be renumbered by an
+  When the same text and kind (the same id apart from its occurrence suffix)
+  appears in several blocks, ids can be renumbered by an
   insertion, so the twin nearest to the saved percentage is chosen and the
   result is `context`, never `exact` (the comparison includes the offset). The
   percentage is rounded to the nearest boundary, and 1 maps to the end of the

@@ -89,6 +89,9 @@ export type Restored = {
 	offset: number;
 };
 
+/** 出現順の番号を除いた id。内容と種類が同じ block は、同じ組になる。 */
+const family = (id: string) => id.replace(/^(p-[0-9a-f]{12})-\d+$/, '$1');
+
 /** 保存した値の項目。端末の保存領域から読むので、型は信用しない。 */
 function field(saved: unknown, key: string): unknown {
 	return typeof saved === 'object' && saved !== null
@@ -131,7 +134,10 @@ export function restorePosition(work: Work, saved: unknown): Restored | null {
 			same.text.slice(offset - before.length, offset) === before &&
 			same.text.startsWith(after, offset)
 		) {
-			const twins = all.filter((t) => t.text === same.text);
+			const kin = family(same.id);
+			const twins = all.filter(
+				(t) => t.text === same.text && family(t.id) === kin
+			);
 			if (twins.length === 1) return { how: 'exact', blockId, offset };
 			// 同じ内容の block が他にもあると、番号が付け替わって id が別の block を指すことがある。
 			// 保存した割合にいちばん近いものを選び、確かではないので exact にはしない。
