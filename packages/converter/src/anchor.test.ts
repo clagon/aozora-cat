@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	blockText,
 	positionAt,
 	restorePosition,
 	type Position
@@ -124,6 +125,37 @@ describe('読書位置の移行', () => {
 			dup + 'さらに。'
 		);
 		expect(restorePosition(edited, saved)?.how).toBe('percent');
+	});
+
+	it('同じ内容が隣り合っていても、前の方の後ろ寄りの位置は前の方へ戻る', () => {
+		const x = '同じ文が繰り返されます。同じ文';
+		const w = work(x, x);
+		const saved = save(w, 0, x.length - 3);
+		expect(restorePosition(w, saved)).toMatchObject({
+			blockId: ids(w)[0],
+			offset: x.length - 3
+		});
+	});
+
+	it('割合から戻す位置は、保存した位置と1字もずれず、作品の終わりも末尾に戻る', () => {
+		const w = work(A, B);
+		const [first, second] = ids(w);
+		// 保存した前後の文字を外して、割合だけで戻す。
+		const byPercent = (p: Position) =>
+			restorePosition(w, { ...p, blockId: 'p-x', before: '', after: '' });
+		for (let off = 0; off < A.length; off++)
+			expect(byPercent(save(w, 0, off)), `offset ${off}`).toEqual({
+				how: 'percent',
+				blockId: first,
+				offset: off
+			});
+		const end = save(w, 1, blockText(w.blocks[1]).length);
+		expect(end.percent).toBe(1);
+		expect(byPercent(end)).toEqual({
+			how: 'percent',
+			blockId: second,
+			offset: end.offset
+		});
 	});
 
 	it('割合は先頭と末尾に収まる', () => {

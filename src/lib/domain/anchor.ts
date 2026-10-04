@@ -136,7 +136,8 @@ export function restorePosition(work: Work, saved: unknown): Restored | null {
 			// 同じ内容の block が他にもあると、番号が付け替わって id が別の block を指すことがある。
 			// 保存した割合にいちばん近いものを選び、確かではないので exact にはしない。
 			const near = twins.reduce((a, b) =>
-				Math.abs(b.at / total - percent) < Math.abs(a.at / total - percent)
+				Math.abs((b.at + offset) / total - percent) <
+				Math.abs((a.at + offset) / total - percent)
 					? b
 					: a
 			);
@@ -164,8 +165,9 @@ export function restorePosition(work: Work, saved: unknown): Restored | null {
 		}
 	}
 
-	const target = Math.min(total - 1, Math.max(0, Math.floor(percent * total)));
-	const hit = all.find((t) => target < t.at + t.text.length);
+	// 割合を文字位置へ戻す。いちばん近い境界へ丸め、作品の終わり（割合 1）は最後の block の末尾にする。
+	const target = Math.min(total, Math.max(0, Math.round(percent * total)));
+	const hit = all.find((t) => target < t.at + t.text.length) ?? all.at(-1);
 	return hit
 		? { how: 'percent', blockId: hit.id, offset: target - hit.at }
 		: null;

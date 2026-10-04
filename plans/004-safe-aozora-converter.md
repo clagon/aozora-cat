@@ -89,7 +89,9 @@ Decisions made in this step:
   (`percent`, the reader should tell the user that the position may have moved).
   When the same text appears in several blocks, ids can be renumbered by an
   insertion, so the twin nearest to the saved percentage is chosen and the
-  result is `context`, never `exact`. A corrupted saved value (missing or
+  result is `context`, never `exact` (the comparison includes the offset). The
+  percentage is rounded to the nearest boundary, and 1 maps to the end of the
+  last block. A corrupted saved value (missing or
   wrongly typed fields) falls through to the percentage instead of throwing.
 - `serializeWork` validates and writes canonical JSON; `readWork` returns a typed
   failure for broken JSON, unsupported versions, or invalid works. There is
