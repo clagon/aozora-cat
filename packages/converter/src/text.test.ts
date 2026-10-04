@@ -103,6 +103,11 @@ describe('convertText: 本文', () => {
 		expect(JSON.stringify(r.work.blocks)).not.toContain('芥川');
 	});
 
+	it('本文の行が「底本：」で始まっても、［＃本文終わり］があればそこまでを本文にする', () => {
+		const { work } = ok('底本：という題の本\n［＃本文終わり］\n入力：富田倫生');
+		expect(work.blocks).toHaveLength(1);
+	});
+
 	it('［＃本文終わり］があれば、その後ろを記載事項にする', () => {
 		const r = convertText(
 			file('本文\n［＃本文終わり］\n入力：富田倫生\n校正：富田倫生', ''),
@@ -491,6 +496,27 @@ describe('convertText: 未知・不正な記法は閉じて失敗する', () => 
 			'範囲外の U+ の外字',
 			'あ※［＃「x」、U+110000、1-1］い',
 			'unknown-notation'
+		],
+		[
+			'包みの中に画像がある行の後ろから指す見出し',
+			'［＃太字］章［＃図（fig92_01.png、横1×縦1）入る］［＃太字終わり］［＃「章」は中見出し］',
+			'unsupported-construct'
+		],
+		[
+			'包みの中に画像がある傍点の対象',
+			'［＃太字］文［＃図（fig92_01.png、横1×縦1）入る］［＃太字終わり］［＃「文」に傍点］',
+			'unknown-notation'
+		],
+		['読みの中のルビの始まり', '漢《か《ん》', 'ruby-base'],
+		[
+			'本文の行が「底本：」で始まり、終わりが決められない',
+			'底本：という題の本',
+			'unsupported-construct'
+		],
+		[
+			'［＃本文終わり］が2つある',
+			'あ\n［＃本文終わり］\nい\n［＃本文終わり］',
+			'unsupported-construct'
 		],
 		[
 			'画像を含む行の後ろから指す見出し',

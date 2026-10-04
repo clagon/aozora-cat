@@ -138,21 +138,20 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		);
 	const bodyStart = dashes[1] + 1;
 
-	// 本文の終わり。「底本：」から後ろが記載事項。［＃本文終わり］があればその後ろ。
-	let bodyEnd = -1;
-	let bibStart = -1;
-	for (let i = bodyStart; i < lines.length; i++) {
-		if (lines[i].startsWith('底本：')) {
-			bodyEnd = i;
-			bibStart = i;
-			break;
-		}
-		if (lines[i].trim() === '［＃本文終わり］') {
-			bodyEnd = i;
-			bibStart = i + 1;
-			break;
-		}
-	}
+	// 本文の終わり。［＃本文終わり］があればその後ろ、なければ「底本：」から後ろが記載事項。
+	// 本文の行が「底本：」で始まることもあるので、終わりの目印を先に探し、決められなければ失敗にする。
+	const marks = (test: (l: string) => boolean) =>
+		lines.flatMap((l, i) => (i >= bodyStart && test(l) ? [i] : []));
+	const endMarks = marks((l) => l.trim() === '［＃本文終わり］');
+	const bibMarks = marks((l) => l.startsWith('底本：'));
+	if (endMarks.length + (endMarks.length === 0 ? bibMarks.length : 0) > 1)
+		throw new Failure(
+			'unsupported-construct',
+			'本文の終わりが決められません',
+			at(endMarks[1] ?? bibMarks[1])
+		);
+	const bodyEnd = endMarks[0] ?? bibMarks[0] ?? -1;
+	const bibStart = endMarks.length > 0 ? bodyEnd + 1 : bodyEnd;
 	if (bodyEnd < 0)
 		throw new Failure(
 			'missing-section',
@@ -309,6 +308,10 @@ function convert(text: string, source: WorkSource): ConvertResult {
 	const plainOf = (u: Unit): string =>
 		u.k === 'ch' ? u.c : u.k === 'node' ? u.plain : '';
 
+	/** 文字として対象にできるか。画像や注記を中に含む包みは、文字が残っていても対象にしない。 */
+	const targetable = (u: Unit): boolean =>
+		plainOf(u) !== '' && !(u.k === 'node' && hasKind([u.n], ['image', 'note']));
+
 	function toInline(units: Unit[], n: number): Inline[] {
 		const out: Inline[] = [];
 		let buf = '';
@@ -441,7 +444,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 			} else if (tok.t === 'ruby') {
 				if (isBlank(tok.s)) fail('ruby-base', 'ルビの読みが空です', n, tok.col);
 				// 読みは文字だけを扱う。注記・外字・｜が入っていたら、文字のままにせず止める。
-				if (/［＃|｜|※/.test(tok.s))
+				if (/［＃|｜|※|《/.test(tok.s))
 					fail('ruby-base', 'ルビの読みに注記や記号があります', n, tok.col);
 				let start: number;
 				if (barAt >= 0) {
@@ -522,7 +525,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 					if (
 						plainText(units) !== m[1] ||
 						units.length === 0 ||
-						units.some((u) => plainOf(u) === '')
+						!units.every(targetable)
 					)
 						fail(
 							'unsupported-construct',
@@ -714,7 +717,7 @@ function convert(text: string, source: WorkSource): ConvertResult {
 		let got = '';
 		while (start > 0 && got.length < target.length) {
 			// 画像や注記など、対象の文字にならないものをまたいで探さない。
-			if (plainOf(units[start - 1]) === '') break;
+			if (!targetable(units[start - 1])) break;
 			start--;
 			got = plainOf(units[start]) + got;
 		}
