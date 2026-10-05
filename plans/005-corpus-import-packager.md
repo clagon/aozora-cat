@@ -45,6 +45,48 @@ works before body fetch. Produce a lightweight searchable catalog.
 **Verify**: integration fixtures cover duplicate author/translator rows,
 missing XHTML, and copyright flags; active works cause zero body requests.
 
+Decisions made in this step (`packages/importer`):
+
+- The CSV is read as RFC 4180; a stray quote (text after a closing quote, or a
+  quote inside an unquoted field) stops the import instead of being repaired.
+  Rows are grouped by work ID. A work's own columns must
+  agree on every row; people are deduplicated by person ID and role and all
+  roles are kept; rows for the same person and role must agree on name and
+  reading or the work is rejected. Names and readings join surname and given name without a
+  separator, as in the converter's `WorkSource`.
+- The pinned schema is the set of columns the importer reads
+  (`REQUIRED_COLUMNS`). A missing column, a repeated column (the authoritative value
+  would be ambiguous), or a row whose column count differs from the header,
+  stops the whole import (`CatalogFormatError`). A new unread
+  column only adds a note, so a harmless upstream addition does not block the
+  weekly run; reviewers see the note.
+- A work whose value cannot be trusted is rejected with a reason instead of
+  being guessed: an unknown copyright flag, an unknown role, a malformed ID or
+  a date that is not on the calendar (such as 2025-02-31), a missing title or orthography, a card URL that does not match the
+  work or whose person directory is not one of the work's people, or rows that disagree. Rejected works are never shipped.
+- Only the work copyright flag decides distribution. Works flagged `あり` stay
+  in the parsed catalog (the Step 4 diff needs them to report rights changes)
+  but `selectBodies` never lists them, so no body request is made for them, and
+  the search catalog leaves them out.
+- A body URL is used only when it is an https `www.aozora.gr.jp/cards/<person>/files/`
+  file of the same person directory whose leading number is this work's ID (the
+  official names are `<id>.html`, `<id>_<n>.html` and `<id>_ruby_<n>.zip`; every
+  real URL into the official files satisfies this), with `.html` for XHTML and `.zip` for
+  text, a valid date, and a ShiftJIS or UTF-8 encoding. Anything else (such as
+  an external site) is dropped with a note, and the other path is still used.
+  Fetch order is XHTML first, then text.
+- Downloads use a per-attempt timeout, a byte limit while streaming, retries
+  with doubling delay for 429, 5xx, network errors and timeouts only, no
+  redirects, and a `User-Agent` naming this project. The catalog zip is opened
+  with one entry at most, a bound on the total expanded size checked before any
+  entry is inflated, a CRC check, and a requirement of exactly one UTF-8 `.csv`.
+- Measured against the official CSV of 2026-08-22 (checked locally; not
+  committed): 17,840 works, 488 flagged `あり`, 17,352 flagged `なし`, of which
+  7 have no usable body, leaving 17,345 fetch targets, all XHTML first. 198
+  works have a body URL outside the official files and are noted. Nothing was
+  rejected. Parsing takes about 0.3 s.
+- Generated output goes under `.corpus/`, which is ignored by Git.
+
 ### Step 2: Fetch incrementally and reproducibly
 
 Use bounded concurrency, conditional requests, immutable temporary staging, and
