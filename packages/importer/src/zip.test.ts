@@ -1,53 +1,6 @@
-import { crc32, deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { makeZip as zip, type ZipEntry as Entry } from './test-zip.ts';
 import { ZipError, readZip, type ZipOptions } from './zip.ts';
-
-type Entry = {
-	name: string;
-	data: string;
-	method?: 0 | 8;
-	flags?: number;
-	crc?: number;
-	rawSize?: number;
-};
-
-/** 試験用の最小のzipを作る。 */
-function zip(entries: Entry[]): Uint8Array {
-	const parts: Buffer[] = [];
-	const central: Buffer[] = [];
-	let offset = 0;
-	for (const e of entries) {
-		const raw = Buffer.from(e.data);
-		const packed = (e.method ?? 8) === 8 ? deflateRawSync(raw) : raw;
-		const name = Buffer.from(e.name);
-		const local = Buffer.alloc(30);
-		local.writeUInt32LE(0x04034b50, 0);
-		local.writeUInt16LE(e.method ?? 8, 8);
-		local.writeUInt32LE(e.crc ?? crc32(raw), 14);
-		local.writeUInt32LE(packed.length, 18);
-		local.writeUInt32LE(e.rawSize ?? raw.length, 22);
-		local.writeUInt16LE(name.length, 26);
-		const head = Buffer.alloc(46);
-		head.writeUInt32LE(0x02014b50, 0);
-		head.writeUInt16LE(e.flags ?? 0, 8);
-		head.writeUInt16LE(e.method ?? 8, 10);
-		head.writeUInt32LE(e.crc ?? crc32(raw), 16);
-		head.writeUInt32LE(packed.length, 20);
-		head.writeUInt32LE(e.rawSize ?? raw.length, 24);
-		head.writeUInt16LE(name.length, 28);
-		head.writeUInt32LE(offset, 42);
-		parts.push(local, name, packed);
-		central.push(head, name);
-		offset += 30 + name.length + packed.length;
-	}
-	const dir = Buffer.concat(central);
-	const end = Buffer.alloc(22);
-	end.writeUInt32LE(0x06054b50, 0);
-	end.writeUInt16LE(entries.length, 10);
-	end.writeUInt32LE(dir.length, 12);
-	end.writeUInt32LE(offset, 16);
-	return new Uint8Array(Buffer.concat([...parts, dir, end]));
-}
 
 const text = (b: Uint8Array | undefined) => new TextDecoder().decode(b);
 const limit: ZipOptions = { maxEntryBytes: 1000 };

@@ -96,6 +96,91 @@ Record URL, upstream timestamps, hashes, converter version, and diagnostics.
 **Verify**: a local fixture server proves retry, resume, unchanged reuse, and
 failure rollback without reaching the public site.
 
+Decisions made in this step (`packages/importer`, `run.ts`):
+
+- Layout under `.corpus/` (ignored by Git): `raw/<sha256>` holds fetched
+  bodies and is never rewritten; each run writes only to
+  `runs/<runId>/{works,records}/<id>.json`; `manifest.json` is written only
+  when every target has a record; `current.json` names the last known-good run
+  and only `commitRun` changes it. Every file is written to a temporary name and
+  renamed, so an interrupted run leaves no half-written file.
+- A run fetches XHTML first and falls back to the text zip when the fetch,
+  decoding, or conversion fails; each failed attempt is kept in the record
+  (`attempts`). A work with no usable path is recorded as `failed` and the run
+  continues. Records hold no clock values, so the same inputs give the same
+  records, works, and manifest bytes.
+- Reuse, in order: the key is a hash of every conversion input (the catalog
+  fields passed to the converter, including the update date, plus the source
+  URL and the declared encoding), so correcting a title, a person, or a card URL in the catalog always
+  produces a new work. If that hash and the converter version equal the
+  previous run's and the work file still matches its recorded hash, nothing is
+  requested. Otherwise the body is requested with `If-None-Match` /
+  `If-Modified-Since` from the previous record (only while the raw copy still
+  exists); a 304 reuses the raw copy, and the work is converted again unless the
+  body hash, the input hash, and the converter version all match the previous
+  record. `revalidate` forces the conditional request for every work. The
+  official site returns `ETag` and `Last-Modified` and answers 304 (checked live
+  on 3 works).
+- Resume: a run is bound to the inputs it started with (a hash of the converter
+  version and every target's catalog fields, source URLs and encodings, kept in
+  `run.json`) and to the `revalidate` setting; resuming with different inputs or a
+  different setting is refused, and the run also keeps the `current` run it
+  started from as its reuse base (a `run.json` whose base is missing or not an
+  explicit `null` or valid run ID is refused, not read as "no base"), so a run committed in between cannot be
+  mixed in, so old and new outputs never mix in one manifest. Running the same
+  `runId` again with the same inputs skips works that already have a record
+  whose id matches and whose work file still matches the recorded hash and size
+  (otherwise the work is processed again), except fetch-level failures
+  (network, timeout, status), which are tried again. Conversion failures are deterministic and are not retried. A
+  corrupt record is treated as missing. A finished run (with a manifest) cannot
+  be run again.
+- A run directory has one writer at a time: `runImport` takes an exclusive lock
+  (`runs/<runId>/lock`, created by hard-linking a file that already holds the
+  owner's PID) and releases it when it ends or fails. A live owner is always
+  refused. A lock left by a dead process is also refused by default, with
+  instructions to check and either pass `recoverStaleLock` or delete the file:
+  automatic takeover cannot be made safe when several processes recover the same
+  dead lock at once (each fix of the guard or the rename only moved the race), so
+  it is left to a caller who can say that nothing else is running.
+- An unexpected failure in one worker (for example a filesystem error) stops the
+  others from taking new works, and `runImport` waits for every worker to settle
+  before it rejects, so nothing keeps requesting or writing after the caller
+  sees the failure. When a previous result is reused, `attempts` always reflects
+  the current invocation.
+- The body size ceiling (64 MiB) can be lowered through `fetchOptions` but not
+  raised. Every numeric setting is checked before any request: `maxBytes`,
+  `timeoutMs`, `retries`, `retryDelayMs`, `concurrency` (1 to 64),
+  `minIntervalMs` (timer limits: at most 2^31-1 ms for `timeoutMs`, `retryDelayMs`
+  and `minIntervalMs`, because Node clamps longer timers to 1 ms; long waits
+  are slept in chunks), and `commitRun`'s `maxFailureRatio` (0 to 1); `NaN` and
+  out-of-range values are refused, because a comparison with `NaN` is always
+  false and would silently disable a limit.
+- Concurrency and politeness: a bounded worker pool (default 4) and a minimum
+  interval between request starts (default 100 ms), applied to every HTTP
+  attempt including retries. Request starts are queued one at a time and the
+  gap is checked when each one's turn comes, so a long event-loop stall cannot
+  make several reserved waits expire together and start requests in a burst. An abort signal stops
+  starting new works and leaves the run resumable.
+- Rollback: `commitRun` refuses a run that is unfinished, has an unreadable or
+  inconsistent manifest, has a converted work whose file is missing or does not
+  match its recorded hash and size, is empty, or whose failure ratio exceeds
+  `maxFailureRatio` (default 2%), and leaves `current.json` untouched. Because a run never writes outside its own directory and `raw/`,
+  a failed run cannot alter the last known-good release.
+- `checkWork` validates every work before anything is read, written, or
+  requested: a six-digit unique ID, a card URL for that work whose person directory is one of the work's people, and body URLs on
+  the official host, in the same person directory, naming this work (the same
+  rules as `parseCatalog`), so a hand-built `CatalogWork[]` cannot turn an ID
+  into a path outside the run directory or send a request to another host. Run IDs must start with an alphanumeric character for the same
+  reason.
+- Copyright-active works are filtered again inside `runImport` (through
+  `selectBodies`), so a caller cannot make it request their bodies.
+- The work schema now accepts the official number-only file names
+  (`733.html`, 116 works) as provenance; before, it required `<id>_<n>`, so
+  those works could not be converted. This changes what the converter
+  produces, so `CONVERTER_VERSION` is now 1.2.0.
+- Known limits: failed works are requested again on the next run because no
+  validators are kept for failures; image fetching and packaging are Step 3.
+
 ### Step 3: Package one asset per work
 
 Serialize metadata, semantic content, and validated images into one compressed

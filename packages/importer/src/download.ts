@@ -2,6 +2,7 @@
 // 取得の関数は差し替えられる（テストは手元のサーバーだけを相手にする）。
 
 import { parseCatalog } from './catalog.ts';
+import { MAX_TIMER_MS, sleep } from './time.ts';
 import { readZip } from './zip.ts';
 import type { ParsedCatalog } from './types.ts';
 
@@ -26,27 +27,71 @@ export type FetchOptions = {
 	retries?: number;
 	/** 1回目の待ち時間。以降は倍にする。 */
 	retryDelayMs?: number;
+	/** 再試行を含めた、通信を始める前に毎回待つ処理。取得の間隔を守るために使う。 */
+	beforeAttempt?: () => Promise<void>;
 	fetch?: typeof fetch;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * 数値の設定を確かめる。NaN や負の値だと、大きさ・時間・回数の比較がすべて偽になり、
+ * 上限や待ちが働かなくなる（公式サイトへ続けざまに通信するなど）ので、通信の前に断る。
+ * maxBytes の Infinity は許す（呼び出し側で上限に丸める）。時間は、タイマーの上限（約24.8日）まで。
+ */
+export function assertFetchOptions(
+	o: Partial<
+		Pick<FetchOptions, 'maxBytes' | 'timeoutMs' | 'retries' | 'retryDelayMs'>
+	>
+): void {
+	const bad = (name: string, v: unknown): never => {
+		throw new RangeError(`${name} が使えません: ${String(v)}`);
+	};
+	const { maxBytes, timeoutMs, retries, retryDelayMs } = o;
+	if (maxBytes !== undefined && !(maxBytes >= 0)) bad('maxBytes', maxBytes);
+	if (timeoutMs !== undefined && !(timeoutMs > 0 && timeoutMs <= MAX_TIMER_MS))
+		bad('timeoutMs', timeoutMs);
+	if (
+		retries !== undefined &&
+		!(Number.isInteger(retries) && retries >= 0 && retries <= 10)
+	)
+		bad('retries', retries);
+	if (
+		retryDelayMs !== undefined &&
+		!(retryDelayMs >= 0 && retryDelayMs <= MAX_TIMER_MS)
+	)
+		bad('retryDelayMs', retryDelayMs);
+}
+
+/** 前回の応答の検証子。あれば条件付きで取得し、変わっていなければ本文を受け取らない。 */
+export type Validators = { etag?: string; lastModified?: string };
+
+export type Fetched =
+	| { status: 'not-modified' }
+	| ({ status: 'ok'; bytes: Uint8Array } & Validators);
 
 /** 429・5xx・通信の失敗・時間切れだけを再試行する。ほかの4xxや、大きすぎる応答は再試行しない。 */
-export async function fetchBytes(
+export async function fetchResource(
 	url: string,
 	{
 		maxBytes,
 		timeoutMs = 30_000,
 		retries = 2,
 		retryDelayMs = 1000,
-		fetch: doFetch = fetch
-	}: FetchOptions
-): Promise<Uint8Array> {
+		fetch: doFetch = fetch,
+		beforeAttempt,
+		etag,
+		lastModified
+	}: FetchOptions & Validators
+): Promise<Fetched> {
+	assertFetchOptions({ maxBytes, timeoutMs, retries, retryDelayMs });
 	let last: FetchError | undefined;
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		if (attempt > 0) await sleep(retryDelayMs * 2 ** (attempt - 1));
+		await beforeAttempt?.();
 		try {
-			return await once(url, doFetch, maxBytes, timeoutMs);
+			return await once(url, doFetch, maxBytes, timeoutMs, {
+				etag,
+				lastModified
+			});
 		} catch (e) {
 			if (!(e instanceof FetchError)) throw e;
 			last = e;
@@ -57,20 +102,42 @@ export async function fetchBytes(
 	throw last ?? new FetchError('network', '取得できませんでした');
 }
 
+export async function fetchBytes(
+	url: string,
+	options: FetchOptions
+): Promise<Uint8Array> {
+	const got = await fetchResource(url, options);
+	if (got.status !== 'ok')
+		throw new FetchError('status', `${url} が条件なしで 304`);
+	return got.bytes;
+}
+
 async function once(
 	url: string,
 	doFetch: typeof fetch,
 	maxBytes: number,
-	timeoutMs: number
-): Promise<Uint8Array> {
+	timeoutMs: number,
+	{ etag, lastModified }: Validators
+): Promise<Fetched> {
 	const signal = AbortSignal.timeout(timeoutMs);
+	const conditional = etag !== undefined || lastModified !== undefined;
 	try {
 		// 転送先を自動でたどらない。公式が移したときは、気づけるよう失敗にする。
 		const res = await doFetch(url, {
 			signal,
 			redirect: 'error',
-			headers: { 'user-agent': USER_AGENT }
+			headers: {
+				'user-agent': USER_AGENT,
+				...(etag !== undefined && { 'if-none-match': etag }),
+				...(lastModified !== undefined && {
+					'if-modified-since': lastModified
+				})
+			}
 		});
+		if (res.status === 304 && conditional) {
+			void res.body?.cancel();
+			return { status: 'not-modified' };
+		}
 		if (!res.ok) throw new FetchError('status', `${url} が ${res.status}`);
 		const declared = Number(res.headers.get('content-length'));
 		if (declared > maxBytes)
@@ -88,10 +155,19 @@ async function once(
 			}
 			chunks.push(part.value);
 		}
-		const out = new Uint8Array(total);
+		const bytes = new Uint8Array(total);
 		let at = 0;
-		for (const c of chunks) (out.set(c, at), (at += c.length));
-		return out;
+		for (const c of chunks) (bytes.set(c, at), (at += c.length));
+		return {
+			status: 'ok',
+			bytes,
+			...(res.headers.get('etag') && {
+				etag: res.headers.get('etag') as string
+			}),
+			...(res.headers.get('last-modified') && {
+				lastModified: res.headers.get('last-modified') as string
+			})
+		};
 	} catch (e) {
 		if (e instanceof FetchError) throw e;
 		if (signal.aborted)

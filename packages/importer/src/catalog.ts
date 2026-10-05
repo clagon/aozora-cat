@@ -279,6 +279,31 @@ function bodyRef(
 }
 
 /**
+ * 取り込みへ渡してよい形か。`parseCatalog` を通らず手で組んだ値でも、公式以外のURLへ通信したり、
+ * 別の作品の本文を取り違えたりしないよう、作品IDと図書カード・本文のURLの対応を確かめる。
+ * 使えない理由を返す。使えるなら null。
+ */
+export function checkWork(w: CatalogWork): string | null {
+	if (!/^\d{6}$/.test(w.id)) return `作品IDが6桁ではありません: ${w.id}`;
+	const card = CARD.exec(w.cardUrl);
+	if (!card || card[2] !== String(Number(w.id)))
+		return `図書カードのURLが作品 ${w.id} と合いません`;
+	// 作品の人物のものでない図書カードは、別の作品の人物を著者として残してしまう。
+	if (!w.people.some((p) => p.id === card[1]))
+		return `作品 ${w.id} の図書カードの人物が、作品の人物にいません`;
+	for (const [path, ref] of [
+		['xhtml', w.xhtml],
+		['text', w.text]
+	] as const) {
+		if (!ref) continue;
+		const r = bodyRef(path, w.id, card[1], ref.url, ref.updated, ref.encoding);
+		if ('why' in r)
+			return `作品 ${w.id} の ${path} の本文の参照が使えません（${r.why}）`;
+	}
+	return null;
+}
+
+/**
  * 本文を取りに行く作品。作品の著作権フラグが「なし」で、本文の参照があるものだけ。
  * 取得の順は、公式のXHTML、なければテキスト（変換に失敗したときの代替も同じ順）。
  * 著作権が「あり」の作品は、ここへ入らないので、本文の取得は1件も起きない。

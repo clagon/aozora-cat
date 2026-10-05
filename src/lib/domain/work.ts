@@ -498,10 +498,10 @@ function person(v: unknown, path: string): Person {
 	return p;
 }
 
-/** 人物ディレクトリは6桁。作品番号は先頭のゼロなしで6桁以内。 */
+/** 人物ディレクトリは6桁。作品番号は先頭のゼロなしで6桁以内。ファイル名は、番号だけ（733.html）の古い形も許す。 */
 const CARD_PATH = /^\/cards\/(\d{6})\/card(\d{1,6})\.html$/;
 const FILE_PATH =
-	/^\/cards\/(\d{6})\/files\/(\d{1,6})_[A-Za-z0-9_.-]+\.(?:html|txt|zip)$/;
+	/^\/cards\/(\d{6})\/files\/(\d{1,6})(?:_[A-Za-z0-9_.-]+)?\.(?:html|txt|zip)$/;
 
 function validDate(s: string): boolean {
 	const d = new Date(`${s}T00:00:00Z`);
