@@ -453,9 +453,20 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 					room = room * 2 - counts[k];
 					if (room < 0) return null;
 				}
+				// 符号の値は、重複せず、使える範囲に収まること。DC は大きさ 0 から 11。AC は、走りと大きさ
+				// （大きさ 1 から 10）の組か、ブロックの終わり（00）と 16 個のゼロ（F0）。
+				const symbols = Array.from(body.subarray(p + 17, p + 17 + n));
+				if (new Set(symbols).size !== symbols.length) return null;
+				for (const v of symbols)
+					if (
+						tc === 0
+							? v > 11
+							: !((v & 15) >= 1 && (v & 15) <= 10) && v !== 0x00 && v !== 0xf0
+					)
+						return null;
 				tables.set(tc * 4 + th, {
 					counts,
-					symbols: Array.from(body.subarray(p + 17, p + 17 + n))
+					symbols
 				});
 				p += 17 + n;
 			}

@@ -17,6 +17,9 @@ import { readOptional, acquireLock, sha256, writeAtomic } from './store.ts';
 import { assertPacing, createGate } from './time.ts';
 import { verifyRun, workFilePath } from './run.ts';
 
+/** 1つの作品の画像の、生のバイト数の合計の上限。梱包のあいだ、メモリに持つ量を抑える。 */
+export const MAX_WORK_IMAGE_BYTES = 32 * 2 ** 20;
+
 /** Cloudflare の静的アセットの、1ファイルの上限。 */
 export const MAX_FILE_BYTES = 25 * 2 ** 20;
 
@@ -150,6 +153,8 @@ export type PackOptions = {
 	/** 画像の取得を始める間隔の下限。 */
 	minIntervalMs?: number;
 	revalidateImages?: boolean;
+	/** 1つの作品の画像の合計（生のバイト数）の上限。既定は 32MiB。超える作品は失敗にする。 */
+	maxWorkImageBytes?: number;
 	maxFileBytes?: number;
 	fetchOptions?: Partial<FetchOptions>;
 };
@@ -159,6 +164,16 @@ export async function packRun(options: PackOptions): Promise<PackResult> {
 	const { root, runId, outDir, concurrency = 4, minIntervalMs = 100 } = options;
 	assertPacing(concurrency, minIntervalMs);
 	assertMaxFileBytes(options.maxFileBytes);
+	if (
+		options.maxWorkImageBytes !== undefined &&
+		!(
+			Number.isInteger(options.maxWorkImageBytes) &&
+			options.maxWorkImageBytes >= 1
+		)
+	)
+		throw new RangeError(
+			`maxWorkImageBytes が使えません: ${options.maxWorkImageBytes}`
+		);
 	assertFetchOptions(options.fetchOptions ?? {});
 	const manifest = await verifyRun(root, runId);
 
@@ -220,20 +235,58 @@ async function packOne(
 	const work = parsed.work;
 
 	const urls = collectImageUrls(work);
-	// 1つが予期しない失敗をしても、ほかの画像の取得が終わるのを待ってから、失敗を返す。先に返すと、
-	// 取得と控えの書き込みが、packRun の完了（ロックの解放）のあとも、裏で続いてしまう。
-	const settled = await Promise.allSettled(urls.map((u) => loader.load(u)));
-	const loaded: ImageResult[] = [];
-	for (const r of settled) {
-		if (r.status === 'rejected') throw r.reason;
-		loaded.push(r.value);
+	const budget = options.maxWorkImageBytes ?? MAX_WORK_IMAGE_BYTES;
+	// 作品の画像は、読めた分だけを、合計が予算を超えない範囲で持つ。超えたら、新しい画像を取りに
+	// 行かず、作品を失敗にする（画像の多い作品が、メモリを使い切らないように）。1つが予期しない
+	// 失敗をしても、ほかの画像の取得が終わるのを待ってから、失敗を返す。先に返すと、取得と控えの
+	// 書き込みが、packRun の完了（ロックの解放）のあとも、裏で続いてしまう。
+	const results: (ImageResult | undefined)[] = urls.map(() => undefined);
+	let total = 0;
+	let exceeded = false;
+	let crash: { error: unknown } | null = null;
+	let next = 0;
+	const worker = async () => {
+		while (!exceeded && crash === null) {
+			const k = next++;
+			if (k >= urls.length) return;
+			try {
+				const r = await loader.load(urls[k]);
+				if (r.ok) {
+					total += r.image.byteLength;
+					if (total > budget) exceeded = true;
+					else results[k] = r;
+				} else results[k] = r;
+			} catch (error) {
+				crash ??= { error };
+			}
+		}
+	};
+	await Promise.all(
+		Array.from(
+			{ length: Math.min(options.concurrency ?? 4, urls.length) },
+			worker
+		)
+	);
+	if (crash !== null) throw (crash as { error: unknown }).error;
+	const failed = results.findIndex((r) => r !== undefined && !r.ok);
+	if (failed >= 0) {
+		const r = results[failed] as Extract<ImageResult, { ok: false }>;
+		return {
+			id,
+			code: `image-${r.code}`,
+			message: r.message,
+			url: urls[failed]
+		};
 	}
+	if (exceeded)
+		return {
+			id,
+			code: 'images-too-large',
+			message: `画像の合計が上限（${budget} バイト）を超えます`
+		};
 	const images = new Map<string, LoadedImage>();
-	for (const [i, r] of loaded.entries()) {
-		if (!r.ok)
-			return { id, code: `image-${r.code}`, message: r.message, url: urls[i] };
-		images.set(urls[i], r.image);
-	}
+	for (const [i, r] of results.entries())
+		if (r?.ok) images.set(urls[i], r.image);
 	let files: PackFile[];
 	try {
 		files = packWork(work, images, { maxFileBytes: options.maxFileBytes });

@@ -369,6 +369,43 @@ describe('packRun', () => {
 		expect(hits).toContain('/gaiji/1-87/1-87-71.png');
 	});
 
+	it('1つの作品の画像の合計が予算を超えたら、新しい画像を取りに行かず、作品を失敗にする', async () => {
+		const names = Array.from({ length: 8 }, (_, i) => `1-87-${70 + i}`);
+		for (const n of names) routes.set(`/gaiji/1-87/${n}.png`, png());
+		serveWork(1, `${names.map((n) => gaijiImg('1-87', n)).join('')}<br />`);
+		serveWork(2, '画像なし。<br />');
+		await importRun([catalog(1), catalog(2)]);
+		hits = [];
+		const size = png().length;
+		const r = await pack({ concurrency: 1, maxWorkImageBytes: size * 2 + 1 });
+		expect(r.packed.map((p) => p.id)).toEqual(['000002']);
+		expect(r.failed).toEqual([
+			{ id: '000001', code: 'images-too-large', message: expect.any(String) }
+		]);
+		// 3枚目で予算を超え、そのあとの画像は取得していない（8枚すべては取得しない）。
+		expect(hits).toHaveLength(3);
+
+		// ちょうど収まる予算なら、すべて梱包する。
+		const out2 = join(root, 'out2');
+		const ok = await pack({
+			outDir: out2,
+			concurrency: 1,
+			maxWorkImageBytes: size * 8
+		});
+		expect(ok.failed).toEqual([]);
+		expect(ok.packed.map((p) => p.images)).toEqual([8, 0]);
+	});
+
+	it('1つの作品の画像の予算に、使えない値を渡すと、断る', async () => {
+		serveWork(1, '本文。<br />');
+		await importRun([catalog(1)]);
+		for (const maxWorkImageBytes of [Number.NaN, 0, 1.5, -1, Infinity])
+			await expect(
+				pack({ maxWorkImageBytes }),
+				String(maxWorkImageBytes)
+			).rejects.toThrow(RangeError);
+	});
+
 	it('画像が取得できない・読めない作品は、失敗として返し、ほかの作品は書く', async () => {
 		routes.set('/gaiji/1-87/1-87-71.png', '<html>not an image</html>');
 		serveWork(1, `甲${gaijiImg('1-87', '1-87-71')}<br />`);

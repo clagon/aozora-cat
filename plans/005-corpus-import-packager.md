@@ -226,7 +226,9 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   trailer that is the last byte, and every image's LZW stream must decode, by
   the specification's code widths and dictionary growth, to exactly the pixels
   of that image's own descriptor (within the size limits); a JPEG must have
-  well-formed quantization and Huffman tables (codes that do not overlap), one
+  well-formed quantization and Huffman tables (codes that do not overlap, symbol
+  values unique and in range: DC sizes 0 to 11, AC run/size pairs with size 1 to
+  10 plus EOB and ZRL, even for codes the scan never uses), one
   baseline or extended sequential Huffman frame (8 bit) whose components and
   sampling factors are valid, and scans that reference existing components and
   tables whose entropy data decodes completely: every Huffman code is defined,
@@ -250,6 +252,11 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   packaging the whole corpus does not keep every image in memory; failures are
   remembered so the same missing image is not requested again. A `revalidate`
   check happens once per URL per process.
+- A work's images are held in memory only up to `maxWorkImageBytes` (default
+  32 MiB of raw bytes) while it is packed: loading stops as soon as the running
+  total exceeds it and the work fails with `images-too-large`, so a work with
+  many large images cannot exhaust memory (the pack workers multiply the
+  bound). Failures are reported in a deterministic order.
 - `packRun` packs the converted works of a verified run into an empty output
   directory (locked while it writes). Its numeric settings are checked
   before anything is written, like `runImport`'s: `concurrency`,

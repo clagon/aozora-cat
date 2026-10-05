@@ -127,6 +127,48 @@ describe('sniffImage: JPEG の符号化データ', () => {
 		bad(jp({ w: 24, h: 8, data: [0x00, 0x0f, 0x00] }), '余り');
 	});
 
+	it('ハフマン表の符号の値が、使える範囲の外や重複なら、使われない符号でも、読まない', () => {
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		// 長さ1の符号に 0、長さ2の符号に別の値（使われない符号）を置く。
+		const withSecond = (cls: 'dc' | 'ac', second: number) => {
+			const p = jpegParts(16, 16);
+			const dc = cls === 'dc' ? [0, second] : [0];
+			const ac = cls === 'ac' ? [0, second] : [0];
+			const table = (c: number, symbols: number[]) => {
+				const counts = new Array(16).fill(0);
+				counts[0] = 1;
+				counts[1] = symbols.length - 1;
+				return [c, ...counts, ...symbols];
+			};
+			const body = [...table(0x00, dc), ...table(0x10, ac)];
+			return Uint8Array.from([
+				...p.soi,
+				...p.dqt,
+				...p.sof,
+				0xff,
+				0xc4,
+				0,
+				body.length + 2,
+				...body,
+				...p.sos,
+				// 長さ1の符号（0）だけを使うので、1ブロックは 2 ビット。
+				...jpegData(16, 16, 2),
+				...p.eoi
+			]);
+		};
+		// 範囲内の値なら、読める（使われない符号があっても）。
+		expect(sniffImage(withSecond('dc', 5))).not.toBeNull();
+		expect(sniffImage(withSecond('ac', 0x05))).not.toBeNull();
+		expect(sniffImage(withSecond('ac', 0xf0))).not.toBeNull();
+		bad(withSecond('dc', 16), 'DC の大きさ 16');
+		bad(withSecond('dc', 12), 'DC の大きさ 12');
+		bad(withSecond('ac', 0x10), 'AC の大きさ 0 で走り 1');
+		bad(withSecond('ac', 0x0b), 'AC の大きさ 11');
+		bad(withSecond('ac', 0x00), 'AC の符号の重複');
+		bad(withSecond('dc', 0), 'DC の符号の重複');
+	});
+
 	it('直流の大きさが範囲外・交流の連なりが64を超える符号化データは、読まない', () => {
 		const bad = (bytes: Uint8Array, why: string) =>
 			expect(sniffImage(bytes), why).toBeNull();
