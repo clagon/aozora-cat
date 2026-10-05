@@ -348,6 +348,30 @@ describe('再開', () => {
 		expect(hits).toEqual([htmlPath(2)]);
 	});
 
+	it('入力（目録の項目・変換器）が変わっていれば、止めた実行を再開せずに断る', async () => {
+		serveXhtml(1);
+		serveXhtml(2);
+		const works = [work(1), work(2)];
+		const stop = new AbortController();
+		onHit = (_, count) => count === 1 && stop.abort();
+		await run('r1', works, { signal: stop.signal });
+		hits = [];
+
+		// 目録の題名が直った。
+		await expect(
+			run('r1', [work(1, { title: '直した題名' }), works[1]])
+		).rejects.toThrow(/別の入力/);
+		// 変換器のバージョンが違う実行として始めていた。
+		const file = join(root, 'runs', 'r1', 'run.json');
+		await writeFile(file, JSON.stringify({ key: '0'.repeat(64) }));
+		await expect(run('r1', works)).rejects.toThrow(/別の入力/);
+		expect(hits).toEqual([]);
+		// 同じ入力なら、再開できる（取得対象の並びが違っても同じ）。
+		await rm(file);
+		const ok = await run('r1', [...works].reverse());
+		expect(ok.complete).toBe(true);
+	});
+
 	it('壊れた記録は、なかったことにして、取り直す', async () => {
 		serveXhtml(1);
 		serveXhtml(2);

@@ -121,8 +121,11 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   record. `revalidate` forces the conditional request for every work. The
   official site returns `ETag` and `Last-Modified` and answers 304 (checked live
   on 3 works).
-- Resume: running the same `runId` again skips works that already have a
-  record, except fetch-level failures (network, timeout, status), which are
+- Resume: a run is bound to the inputs it started with (a hash of the converter
+  version and every target's catalog fields, source URLs and encodings, kept in
+  `run.json`); resuming with different inputs is refused, so old and new
+  outputs never mix in one manifest. Running the same `runId` again with the
+  same inputs skips works that already have a record, except fetch-level failures (network, timeout, status), which are
   tried again. Conversion failures are deterministic and are not retried. A
   corrupt record is treated as missing. A finished run (with a manifest) cannot
   be run again.

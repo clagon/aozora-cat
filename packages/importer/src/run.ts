@@ -75,6 +75,36 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	// 著作権が「あり」の作品は、ここへ来ても取りに行かない。
 	const targets = selectBodies(options.works).fetch;
 	const previous = await readCurrent(root);
+
+	// 実行は、始めたときの入力（目録の項目・本文の参照・変換器）に結び付ける。再開のとき、入力が
+	// 変わっていれば、古い記録を混ぜずに止める（記録の中身が、今の入力に合うかを個別に調べない）。
+	const key = sha256(
+		JSON.stringify({
+			converter: CONVERTER_VERSION,
+			inputs: targets
+				.map((t) => [
+					t.id,
+					t.sources.map((src) => [
+						src.path,
+						src.url,
+						src.encoding,
+						sha256(JSON.stringify(toSource(byId.get(t.id) as CatalogWork, src)))
+					])
+				])
+				.sort((a, b) => (a[0] < b[0] ? -1 : 1))
+		})
+	);
+	const started = await readOptional(runPath(root, runId, 'run.json'));
+	if (started === null)
+		await writeAtomic(
+			runPath(root, runId, 'run.json'),
+			`${JSON.stringify({ key })}\n`
+		);
+	else if (started.toString('utf-8') !== `${JSON.stringify({ key })}\n`)
+		throw new Error(
+			`実行 ${runId} は、別の入力（目録・変換器）で始めた実行です。新しい runId で始めてください`
+		);
+
 	const stats: RunStats = {
 		fetched: 0,
 		notModified: 0,
