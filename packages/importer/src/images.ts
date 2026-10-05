@@ -93,6 +93,7 @@ const toLoaded = (bytes: Uint8Array, hash: string): ImageResult => {
 /** 画像を取得して検証する。同じURLは、実行のあいだ、1回だけ取得する。 */
 export class ImageLoader {
 	#memo = new Map<string, Promise<ImageResult>>();
+	#checked = new Set<string>();
 	#opts: ImageLoaderOptions;
 	#limit: ReturnType<typeof createLimiter>;
 	constructor(opts: ImageLoaderOptions) {
@@ -102,16 +103,35 @@ export class ImageLoader {
 		this.#limit = createLimiter(opts.concurrency ?? 4);
 	}
 
+	/**
+	 * 同じURLを、同時に2回取得しない。成功した結果（base64 の本体を含む）は、すぐに手放す。作品を
+	 * またいで全件を梱包するとき、取得した画像の合計がメモリに残り続けないよう、あとは控え
+	 * （raw/<sha256>）から読み直す。失敗は小さいので、同じ理由で何度も通信しないよう覚えておく。
+	 */
 	load(url: string): Promise<ImageResult> {
 		let p = this.#memo.get(url);
 		if (!p) {
-			p = this.#fetchOne(url);
+			// 取り直しの指定でも、確かめるのは、URLごとにプロセスで1回だけ。
+			const revalidate =
+				this.#opts.revalidate === true && !this.#checked.has(url);
+			p = this.#fetchOne(url, revalidate);
 			this.#memo.set(url, p);
+			void p.then((r) => {
+				if (r.ok) {
+					this.#memo.delete(url);
+					this.#checked.add(url);
+				}
+			});
 		}
 		return p;
 	}
 
-	async #fetchOne(url: string): Promise<ImageResult> {
+	/** 覚えている結果の数（試験用）。成功した結果は含まない。 */
+	get retained(): number {
+		return this.#memo.size;
+	}
+
+	async #fetchOne(url: string, revalidate: boolean): Promise<ImageResult> {
 		if (!IMAGE_URL.test(url))
 			return {
 				ok: false,
@@ -127,7 +147,7 @@ export class ImageLoader {
 			const raw = await readOptional(join(root, 'raw', meta.sha256));
 			if (raw !== null && sha256(raw) === meta.sha256) cached = raw;
 		}
-		if (cached && meta && !this.#opts.revalidate) {
+		if (cached && meta && !revalidate) {
 			const r = toLoaded(cached, meta.sha256);
 			if (r.ok) return r;
 		}

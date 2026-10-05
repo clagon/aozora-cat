@@ -220,7 +220,8 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   (color type, bit depth, interlace), its PLTE where needed, consecutive IDAT
   chunks, IEND last with nothing after it, and an IDAT that inflates to exactly
   the size its rows need with valid filter bytes; a GIF must have its blocks
-  (extensions, at least one image, LZW code size 2 to 8) follow each other to a
+  (extensions, at least one image whose own size is within the limits and whose
+  pixel data is not empty, LZW code size 2 to 8) follow each other to a
   trailer that is the last byte; a JPEG must have a quantization table, one frame
   and a scan with entropy data before an EOI that is the last two bytes. Sides
   are at most 10,000 px, the area at most 16 million pixels, the file 8 MiB.
@@ -230,6 +231,11 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   list rather than ship. A readable image is kept under `raw/<sha256>`
   with its validators; later runs reuse it without a request, and
   `revalidateImages` checks with `If-None-Match` / `If-Modified-Since`.
+- `ImageLoader` forgets a successful result as soon as it resolves (the bytes
+  are read back from `raw/<sha256>` when another work needs the image), so
+  packaging the whole corpus does not keep every image in memory; failures are
+  remembered so the same missing image is not requested again. A `revalidate`
+  check happens once per URL per process.
 - `packRun` packs the converted works of a verified run into an empty output
   directory (locked while it writes). Its numeric settings are checked
   before anything is written, like `runImport`'s: `concurrency`,

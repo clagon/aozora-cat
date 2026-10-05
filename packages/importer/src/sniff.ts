@@ -151,13 +151,15 @@ function gifInfo(b: Uint8Array): Sniffed | null {
 	const height = b[8] | (b[9] << 8);
 	let at = 13;
 	if (b[10] & 0x80) at += 3 * 2 ** ((b[10] & 7) + 1);
-	// サブブロックの連なりを読み飛ばして、終わりの位置（0 の次）を返す。
-	const skip = (from: number): number => {
+	// サブブロックの連なりを読み飛ばして、終わりの位置（0 の次）と、データの合計の大きさを返す。
+	const skip = (from: number): { end: number; bytes: number } | null => {
 		let p = from;
+		let bytes = 0;
 		for (;;) {
-			if (p >= b.length) return -1;
+			if (p >= b.length) return null;
 			const n = b[p];
-			if (n === 0) return p + 1;
+			if (n === 0) return { end: p + 1, bytes };
+			bytes += n;
 			p += 1 + n;
 		}
 	};
@@ -170,18 +172,33 @@ function gifInfo(b: Uint8Array): Sniffed | null {
 		}
 		if (m === 0x21) {
 			if (at + 2 > b.length) return null;
-			at = skip(at + 2);
+			const ext = skip(at + 2);
+			if (!ext) return null;
+			at = ext.end;
 		} else if (m === 0x2c) {
 			if (at + 10 > b.length) return null;
+			// 画像の大きさ。論理画面とは別に、上限を守る（大きな画像を小さな画面に隠せない）。
+			const w = b[at + 5] | (b[at + 6] << 8);
+			const h = b[at + 7] | (b[at + 8] << 8);
+			if (
+				w < 1 ||
+				h < 1 ||
+				w > MAX_IMAGE_SIDE ||
+				h > MAX_IMAGE_SIDE ||
+				w * h > MAX_IMAGE_PIXELS
+			)
+				return null;
 			const flags = b[at + 9];
 			at += 10;
 			if (flags & 0x80) at += 3 * 2 ** ((flags & 7) + 1);
 			const minCode = b[at];
 			if (minCode < 2 || minCode > 8) return null;
-			at = skip(at + 1);
+			const data = skip(at + 1);
+			// 圧縮された画素のデータが、1バイトもない画像は、表示できない。
+			if (!data || data.bytes === 0) return null;
+			at = data.end;
 			images++;
 		} else return null;
-		if (at < 0) return null;
 	}
 	return null;
 }

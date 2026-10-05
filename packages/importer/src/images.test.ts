@@ -161,6 +161,29 @@ describe('sniffImage: 構造', () => {
 			g.map((v, i) => (i === 10 ? 0x87 : v)),
 			'色表が長すぎて足りない'
 		);
+		// 画像の大きさがゼロ・大きすぎる（論理画面が小さくても）・画素のデータが空の画像は読まない。
+		const frame = (w: number, h: number) =>
+			g.map((v, i) =>
+				i === 24
+					? w & 255
+					: i === 25
+						? w >> 8
+						: i === 26
+							? h & 255
+							: i === 27
+								? h >> 8
+								: v
+			);
+		bad(frame(0, 4), '画像の幅がゼロ');
+		bad(frame(4, 0), '画像の高さがゼロ');
+		bad(frame(65535, 65535), '画像が大きすぎる');
+		bad(frame(10001, 1), '画像の辺が長すぎる');
+		expect(sniffImage(Uint8Array.from(frame(16, 16)))).not.toBeNull();
+		bad([...g.slice(0, 30), 0, 0x3b], '画素のデータが空');
+		bad(
+			[...g.slice(0, 30), 0, ...g.slice(30)],
+			'空のブロックのあとに本体が来ても、終わりの印が続かない'
+		);
 		// 拡張ブロックの連なりも、読み飛ばせる。
 		expect(
 			sniffImage(
@@ -411,6 +434,20 @@ describe('ImageLoader', () => {
 		expect(peak).toBe(2);
 		for (const concurrency of [0, 65, Number.NaN, 1.5])
 			expect(() => loader({ concurrency })).toThrow(RangeError);
+	});
+
+	it('成功した結果は覚えず、失敗だけを覚える。取り直しの指定でも、確かめるのは URL ごとに1回', async () => {
+		routes.set('/gaiji/1-87/1-87-71.png', { body: png(), etag: '"v1"' });
+		const l = loader({ revalidate: true });
+		for (let i = 0; i < 3; i++) expect((await l.load(G)).ok).toBe(true);
+		expect(hits).toHaveLength(1);
+		expect(l.retained).toBe(0);
+
+		const missing = 'https://www.aozora.gr.jp/gaiji/0-0/none.png';
+		expect((await l.load(missing)).ok).toBe(false);
+		expect((await l.load(missing)).ok).toBe(false);
+		expect(hits).toHaveLength(2);
+		expect(l.retained).toBe(1);
 	});
 
 	it('使えない設定は、通信の前に断る', () => {
