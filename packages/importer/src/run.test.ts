@@ -486,6 +486,26 @@ describe('差分取得と再利用', () => {
 		);
 	});
 
+	it('目録の符号化方式だけが直ったときも、同じ本文を引き継がず、読み直す', async () => {
+		serveXhtml(1, '本文です。<br />', '"v1"');
+		await run('r1', [work(1)]);
+		await commitRun(root, 'r1');
+		hits = [];
+		// 符号化方式の申告が変わった。本文のバイト列は同じで、読み方が変わる。
+		const w = work(1);
+		const fixed = {
+			...w,
+			xhtml: { ...w.xhtml!, encoding: 'ShiftJIS' as const }
+		};
+		for (const revalidate of [false, true]) {
+			const r = await run(revalidate ? 'r3' : 'r2', [fixed], { revalidate });
+			expect(r.stats.catalogUnchanged).toBe(0);
+			// UTF-8 の本文を Shift_JIS として読むので、読み方が反映され、記録は変わる。
+			const rec = (await manifest(revalidate ? 'r3' : 'r2')).records[0];
+			expect(rec).not.toEqual((await manifest('r1')).records[0]);
+		}
+	});
+
 	it('前回の変換器のバージョンが違う、または作品のファイルが記録と合わないときは、引き継がず変換し直す', async () => {
 		await setup();
 		const rec = join(root, 'runs', 'r1', 'records', '000001.json');

@@ -61,6 +61,16 @@ export type RunResult = {
 	stats: RunStats;
 };
 
+type Source = ReturnType<
+	typeof selectBodies
+>['fetch'][number]['sources'][number];
+
+/** 変換の入力のハッシュ。変換器へ渡す値に加え、復号を決める符号化方式も含める。 */
+const inputHash = (work: CatalogWork, src: Source): string =>
+	sha256(
+		JSON.stringify({ source: toSource(work, src), encoding: src.encoding })
+	);
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const runPath = (root: string, runId: string, ...rest: string[]) =>
 	join(root, 'runs', runId, ...rest);
@@ -88,7 +98,7 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 						src.path,
 						src.url,
 						src.encoding,
-						sha256(JSON.stringify(toSource(byId.get(t.id) as CatalogWork, src)))
+						inputHash(byId.get(t.id) as CatalogWork, src)
 					])
 				])
 				.sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -211,7 +221,7 @@ async function importWork(
 				...(location && { location })
 			});
 		// 変換器へ渡す入力。目録の項目（題名・人物・図書カードなど）が直ると変わるので、再利用の鍵にする。
-		const input = sha256(JSON.stringify(toSource(work, src)));
+		const input = inputHash(work, src);
 		// 前回の実行で、同じ経路・同じURLから変換できていれば、それを土台にする。
 		const prev = await previousConverted(ctx, work.id, src.path, src.url);
 

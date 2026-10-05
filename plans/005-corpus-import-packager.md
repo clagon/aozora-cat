@@ -111,7 +111,7 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   records, works, and manifest bytes.
 - Reuse, in order: the key is a hash of every conversion input (the catalog
   fields passed to the converter, including the update date, plus the source
-  URL), so correcting a title, a person, or a card URL in the catalog always
+  URL and the declared encoding), so correcting a title, a person, or a card URL in the catalog always
   produces a new work. If that hash and the converter version equal the
   previous run's and the work file still matches its recorded hash, nothing is
   requested. Otherwise the body is requested with `If-None-Match` /
