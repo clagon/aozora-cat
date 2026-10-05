@@ -21,7 +21,7 @@ import {
 	fetchResource,
 	type FetchOptions
 } from './download.ts';
-import { readOptional, sha256, writeAtomic } from './store.ts';
+import { acquireLock, readOptional, sha256, writeAtomic } from './store.ts';
 import type { Diagnostic as ConversionDiagnostic } from '../../converter/src/types.ts';
 import type {
 	Attempt,
@@ -87,8 +87,6 @@ const runPath = (root: string, runId: string, ...rest: string[]) =>
 export async function runImport(options: RunOptions): Promise<RunResult> {
 	const { root, runId, concurrency = 4, minIntervalMs = 100 } = options;
 	if (!RUN_ID.test(runId)) throw new Error(`runId が使えません: ${runId}`);
-	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
-		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
 	// NaN や負の値は、上限や間隔を働かなくする。通信を始める前に、設定の誤りとして断る。
 	assertFetchOptions(options.fetchOptions ?? {});
@@ -105,6 +103,20 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	}
 	if (new Set(options.works.map((w) => w.id)).size !== options.works.length)
 		throw new Error('作品IDが重複しています');
+
+	// 同じ作業領域・同じ runId を、同時に2つ書かせない。
+	const release = await acquireLock(runPath(root, runId, 'lock'));
+	try {
+		return await execute(options);
+	} finally {
+		await release();
+	}
+}
+
+async function execute(options: RunOptions): Promise<RunResult> {
+	const { root, runId, concurrency = 4, minIntervalMs = 100 } = options;
+	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
+		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
 	const byId = new Map(options.works.map((w) => [w.id, w]));
 	// 著作権が「あり」の作品は、ここへ来ても取りに行かない。

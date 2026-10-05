@@ -134,6 +134,10 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   (network, timeout, status), which are tried again. Conversion failures are deterministic and are not retried. A
   corrupt record is treated as missing. A finished run (with a manifest) cannot
   be run again.
+- A run directory has one writer at a time: `runImport` takes an exclusive lock
+  (`runs/<runId>/lock`, created by hard-linking a file that already holds the
+  owner's PID) and releases it when it ends or fails. A live owner is refused;
+  a lock left by a dead process is renamed away and taken over.
 - An unexpected failure in one worker (for example a filesystem error) stops the
   others from taking new works, and `runImport` waits for every worker to settle
   before it rejects, so nothing keeps requesting or writing after the caller

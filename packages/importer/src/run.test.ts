@@ -314,6 +314,37 @@ describe('runImport', () => {
 		expect(await readdir(root)).toEqual([]);
 	});
 
+	it('同じ runId を同時に2つ書かせない。持ち主が終わっているロックは取り直し、終えたあとは解放する', async () => {
+		serveXhtml(1);
+		const lock = join(root, 'runs', 'r1', 'lock');
+		const both = await Promise.allSettled([
+			run('r1', [work(1)]),
+			run('r1', [work(1)])
+		]);
+		expect(both.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+		const refused = both.find((r) => r.status === 'rejected');
+		expect(
+			refused && refused.status === 'rejected' && String(refused.reason)
+		).toMatch(/使っています/);
+		// 終えたら、ロックは残らない。
+		expect(await readdir(join(root, 'runs', 'r1'))).not.toContain('lock');
+
+		// 動いているプロセスのロックは拒み、終わっているプロセスのロックは取り直す。
+		await rm(join(root, 'runs', 'r1', 'manifest.json'));
+		await writeFile(lock, String(process.pid));
+		await expect(run('r1', [work(1)])).rejects.toThrow(/使っています/);
+		await writeFile(lock, '2147483646');
+		expect((await run('r1', [work(1)])).complete).toBe(true);
+		// 失敗して終わった場合も、ロックを解放する。
+		await rm(join(root, 'runs', 'r1', 'manifest.json'));
+		await rm(join(root, 'runs', 'r1', 'records', '000001.json'));
+		await mkdir(join(root, 'runs', 'r1', 'records', '000001.json'), {
+			recursive: true
+		});
+		await expect(run('r1', [work(1)])).rejects.toThrow();
+		expect(await readdir(join(root, 'runs', 'r1'))).not.toContain('lock');
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);
