@@ -526,6 +526,29 @@ describe('再開', () => {
 		expect(started.previous).toBe('r0');
 	});
 
+	it('止めた実行の作品のファイルが無い・記録と合わない・記録が別の作品のものなら、飛ばさずに作り直す', async () => {
+		serveXhtml(1);
+		serveXhtml(2);
+		serveXhtml(3);
+		const works = [work(1), work(2), work(3)];
+		await run('r1', works);
+		// 全部終えた実行から manifest だけ消して、途中で止まった実行に見せかける。
+		const dir = (...rest: string[]) => join(root, 'runs', 'r1', ...rest);
+		await rm(dir('manifest.json'));
+		await rm(dir('works', '000001.json'));
+		await writeFile(dir('works', '000002.json'), '{}');
+		await writeFile(
+			dir('records', '000003.json'),
+			await readFile(dir('records', '000002.json'), 'utf-8')
+		);
+		hits = [];
+		const r = await run('r1', works);
+		expect(r.stats.resumed).toBe(0);
+		expect(hits.sort()).toEqual([htmlPath(1), htmlPath(2), htmlPath(3)]);
+		await commitRun(root, 'r1');
+		expect(await readCurrent(root)).toBe('r1');
+	});
+
 	it('壊れた記録は、なかったことにして、取り直す', async () => {
 		serveXhtml(1);
 		serveXhtml(2);

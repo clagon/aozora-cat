@@ -166,6 +166,8 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 			// 取得の失敗（通信・時間切れなど）は、再開のときにもう一度試す。変換の失敗は同じ結果なので飛ばす。
 			if (
 				done &&
+				done.id === t.id &&
+				(await artifactOk(root, runId, done)) &&
 				!(
 					done.status === 'failed' &&
 					done.attempts.some((a) => a.code.startsWith('fetch-'))
@@ -378,6 +380,23 @@ async function importWork(
 	return finish({ id: work.id, status: 'failed', attempts });
 }
 
+/** 記録が示す作品のファイルが、あり、記録のハッシュと大きさに合うか。失敗の記録は作品を持たないので、常に合う。 */
+async function artifactOk(
+	root: string,
+	runId: string,
+	r: WorkRecord
+): Promise<boolean> {
+	if (r.status !== 'converted') return true;
+	const work = await readOptional(
+		runPath(root, runId, 'works', `${r.id}.json`)
+	);
+	return (
+		work !== null &&
+		work.length === r.workBytes &&
+		sha256(work) === r.workSha256
+	);
+}
+
 /** 前回の実行の、この経路・URLの変換結果。作品のファイルが記録と合わなければ、なかったことにする。 */
 async function previousConverted(
 	ctx: Ctx,
@@ -394,7 +413,12 @@ async function previousConverted(
 	const work = await readOptional(
 		runPath(ctx.root, ctx.previous, 'works', `${id}.json`)
 	);
-	if (work === null || sha256(work) !== record.workSha256) return null;
+	if (
+		work === null ||
+		work.length !== record.workBytes ||
+		sha256(work) !== record.workSha256
+	)
+		return null;
 	return { record, work };
 }
 
@@ -601,18 +625,9 @@ export async function commitRun(
 			`失敗が多すぎます（${counts.failed}/${counts.total}）`
 		);
 	// 記録が示す作品のファイルが、すべてあり、ハッシュと大きさが合うこと。
-	for (const r of manifest.records) {
-		if (r.status !== 'converted') continue;
-		const work = await readOptional(
-			runPath(root, runId, 'works', `${r.id}.json`)
-		);
-		if (
-			work === null ||
-			sha256(work) !== r.workSha256 ||
-			work.length !== r.workBytes
-		)
+	for (const r of manifest.records)
+		if (!(await artifactOk(root, runId, r)))
 			throw new CommitRefused(`作品 ${r.id} のファイルが、記録と合いません`);
-	}
 	await writeAtomic(
 		join(root, 'current.json'),
 		`${JSON.stringify({ runId })}\n`
