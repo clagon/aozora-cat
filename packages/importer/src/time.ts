@@ -25,3 +25,14 @@ export function createGate(minIntervalMs: number): () => Promise<void> {
 		return turn;
 	};
 }
+
+/**
+ * 同時に取る数と、通信を始める間隔を確かめる。NaN や範囲外の値は、上限や間隔を黙って働かなくする
+ * （続けざまに通信する、いつまでも待つなど）ので、通信を始める前に断る。
+ */
+export function assertPacing(concurrency: number, minIntervalMs: number): void {
+	if (!(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 64))
+		throw new RangeError(`concurrency が使えません: ${concurrency}`);
+	if (!(minIntervalMs >= 0 && minIntervalMs <= MAX_TIMER_MS))
+		throw new RangeError(`minIntervalMs が使えません: ${minIntervalMs}`);
+}

@@ -21,7 +21,7 @@ import {
 	fetchResource,
 	type FetchOptions
 } from './download.ts';
-import { createGate, MAX_TIMER_MS } from './time.ts';
+import { assertPacing, createGate, MAX_TIMER_MS } from './time.ts';
 import { acquireLock, readOptional, sha256, writeAtomic } from './store.ts';
 import type { Diagnostic as ConversionDiagnostic } from '../../converter/src/types.ts';
 import type {
@@ -95,10 +95,7 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 
 	// NaN や負の値は、上限や間隔を働かなくする。通信を始める前に、設定の誤りとして断る。
 	assertFetchOptions(options.fetchOptions ?? {});
-	if (!(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 64))
-		throw new RangeError(`concurrency が使えません: ${concurrency}`);
-	if (!(minIntervalMs >= 0 && minIntervalMs <= MAX_TIMER_MS))
-		throw new RangeError(`minIntervalMs が使えません: ${minIntervalMs}`);
+	assertPacing(concurrency, minIntervalMs);
 
 	// 作品IDはファイル名に、本文のURLは通信の宛先になる。呼び出し側が組んだ値でも、公式以外や
 	// パスの一部、別の作品のものを持ち込ませない。何かを読み書きする前に調べる。

@@ -11,10 +11,10 @@ import {
 	type AssetImage
 } from '../../../src/lib/domain/asset.ts';
 import { readWork, type Work } from '../../../src/lib/domain/work.ts';
-import type { FetchOptions } from './download.ts';
+import { assertFetchOptions, type FetchOptions } from './download.ts';
 import { ImageLoader, type LoadedImage } from './images.ts';
 import { readOptional, acquireLock, sha256, writeAtomic } from './store.ts';
-import { createGate } from './time.ts';
+import { assertPacing, createGate } from './time.ts';
 import { verifyRun, workFilePath } from './run.ts';
 
 /** Cloudflare の静的アセットの、1ファイルの上限。 */
@@ -27,6 +27,15 @@ export class PackError extends Error {
 		super(message);
 		this.code = code;
 	}
+}
+
+/** 上限は、配信先の上限（25MiB）を超えられない。NaN や無限大、0以下も、比較を狂わせるので断る。 */
+function assertMaxFileBytes(v: number | undefined): void {
+	if (
+		v !== undefined &&
+		!(Number.isInteger(v) && v >= 1 && v <= MAX_FILE_BYTES)
+	)
+		throw new RangeError(`maxFileBytes が使えません: ${v}`);
 }
 
 export type PackFile = { path: string; bytes: Uint8Array };
@@ -50,6 +59,7 @@ export function packWork(
 	images: Map<string, AssetImage>,
 	{ maxFileBytes = MAX_FILE_BYTES }: { maxFileBytes?: number } = {}
 ): PackFile[] {
+	assertMaxFileBytes(maxFileBytes);
 	const urls = collectImageUrls(work);
 	for (const url of urls)
 		if (!images.has(url))
@@ -147,8 +157,9 @@ export type PackOptions = {
 /** 実行の作品を1つずつアセットにして、出力先の works/ へ書く。画像が使えない作品は、失敗として返す。 */
 export async function packRun(options: PackOptions): Promise<PackResult> {
 	const { root, runId, outDir, concurrency = 4, minIntervalMs = 100 } = options;
-	if (!(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 64))
-		throw new RangeError(`concurrency が使えません: ${concurrency}`);
+	assertPacing(concurrency, minIntervalMs);
+	assertMaxFileBytes(options.maxFileBytes);
+	assertFetchOptions(options.fetchOptions ?? {});
 	const manifest = await verifyRun(root, runId);
 
 	await mkdir(outDir, { recursive: true });

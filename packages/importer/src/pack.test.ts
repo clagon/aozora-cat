@@ -14,7 +14,7 @@ import {
 	type AssetImage
 } from '../../../src/lib/domain/asset.ts';
 import { readWork, type Work } from '../../../src/lib/domain/work.ts';
-import { PackError, packRun, packWork } from './pack.ts';
+import { MAX_FILE_BYTES, PackError, packRun, packWork } from './pack.ts';
 import { commitRun, runImport } from './run.ts';
 import { sha256 } from './store.ts';
 import { gif, jpeg, png } from './test-images.ts';
@@ -334,6 +334,43 @@ describe('packRun', () => {
 			}
 		]);
 		expect(await readdir(join(out, 'works'))).toEqual(['000003.json.gz']);
+	});
+
+	it('同時に取る数・間隔・ファイルの上限に使えない値を渡すと、何かを書く前に断る', async () => {
+		serveWork(1, '本文。<br />');
+		await importRun([catalog(1)]);
+		const bad: Partial<Parameters<typeof packRun>[0]>[] = [
+			{ concurrency: Number.NaN },
+			{ concurrency: 65 },
+			{ minIntervalMs: Number.NaN },
+			{ minIntervalMs: -1 },
+			{ minIntervalMs: Infinity },
+			{ minIntervalMs: 2 ** 31 },
+			{ maxFileBytes: Number.NaN },
+			{ maxFileBytes: Infinity },
+			{ maxFileBytes: 0 },
+			{ maxFileBytes: 1.5 },
+			{ maxFileBytes: MAX_FILE_BYTES + 1 }
+		];
+		for (const [i, o] of bad.entries())
+			await expect(pack(o), String(i)).rejects.toThrow(RangeError);
+		await expect(
+			pack({ fetchOptions: { ...fast, maxBytes: Number.NaN } })
+		).rejects.toThrow(RangeError);
+		expect(await readdir(root)).not.toContain('out');
+	});
+
+	it('1ファイルの上限は、配信先の上限（25MiB）を超えられない', async () => {
+		const w = await workWith([G1]);
+		const images = new Map([[G1, image()]]);
+		for (const maxFileBytes of [Number.NaN, Infinity, 0, MAX_FILE_BYTES + 1])
+			expect(
+				() => packWork(w, images, { maxFileBytes }),
+				String(maxFileBytes)
+			).toThrow(RangeError);
+		expect(packWork(w, images, { maxFileBytes: MAX_FILE_BYTES })).toHaveLength(
+			1
+		);
 	});
 
 	it('出力先が空でない、実行の作品のファイルが記録と合わない、設定が使えないときは、書く前に断る', async () => {

@@ -219,7 +219,10 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   with its validators; later runs reuse it without a request, and
   `revalidateImages` checks with `If-None-Match` / `If-Modified-Since`.
 - `packRun` packs the converted works of a verified run into an empty output
-  directory (locked while it writes). A work whose image cannot be fetched or is
+  directory (locked while it writes). Its numeric settings are checked
+  before anything is written, like `runImport`'s: `concurrency`,
+  `minIntervalMs`, the fetch options, and `maxFileBytes` (an integer from 1 up to
+  the 25 MiB deployment limit, never above it). A work whose image cannot be fetched or is
   invalid is returned as a failure (`image-<reason>` with the URL) and is not
   shipped; the other works are still written.
 - Real check (the official site, 5 images at 800 ms intervals): gaiji and
