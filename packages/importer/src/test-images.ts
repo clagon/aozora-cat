@@ -56,7 +56,42 @@ export const png = (w = 16, h = 16): Uint8Array =>
 		...iend()
 	]);
 
-/** GIF89a。色表2色、画像1枚。大きさは論理画面と画像の両方に入れる。 */
+/**
+ * 画素 n 個ぶんの、LZW 符号のバイト列（最小符号長 2）。クリア符号を2画素ごとに入れて、辞書が伸びない
+ * ようにする（符号の幅が 3 ビットのまま）。最後に終了符号。圧縮はしないが、規格どおりに復号できる。
+ */
+export const lzw = (pixels: number): number[] => {
+	const out: number[] = [];
+	let acc = 0;
+	let have = 0;
+	const put = (code: number) => {
+		acc |= code << have;
+		have += 3;
+		while (have >= 8) {
+			out.push(acc & 255);
+			acc >>>= 8;
+			have -= 8;
+		}
+	};
+	for (let i = 0; i < pixels; i++) {
+		if (i % 2 === 0) put(4);
+		put(0);
+	}
+	put(5);
+	if (have > 0) out.push(acc & 255);
+	return out;
+};
+/** バイト列を、255 バイトまでのサブブロックの連なり（0 で終わる）にする。 */
+export const subBlocks = (data: number[]): number[] => {
+	const out: number[] = [];
+	for (let i = 0; i < data.length; i += 255) {
+		const part = data.slice(i, i + 255);
+		out.push(part.length, ...part);
+	}
+	return [...out, 0];
+};
+
+/** GIF89a。色表2色、画像1枚（全画素が 0）。大きさは論理画面と画像の両方に入れる。 */
 export const gif = (w = 16, h = 16): Uint8Array =>
 	Uint8Array.from([
 		...ascii('GIF89a'),
@@ -84,14 +119,11 @@ export const gif = (w = 16, h = 16): Uint8Array =>
 		h >> 8,
 		0,
 		2,
-		2,
-		0x44,
-		0x01,
-		0,
+		...subBlocks(lzw(w * h)),
 		0x3b
 	]);
 
-/** JPEG: 量子化表・ハフマン表・フレーム・スキャン・符号化データ・EOI を、順に持つ。 */
+/** JPEG: 量子化表・ハフマン表（DC と AC）・フレーム（1成分）・スキャン・符号化データ・EOI を、順に持つ。 */
 export const jpegParts = (w = 16, h = 16) => ({
 	soi: [0xff, 0xd8],
 	dqt: [0xff, 0xdb, 0x00, 0x43, 0x00, ...new Array(64).fill(1)],
@@ -110,7 +142,23 @@ export const jpegParts = (w = 16, h = 16) => ({
 		0x11,
 		0
 	],
-	dht: [0xff, 0xc4, 0x00, 0x15, 0x00, 0, 1, ...new Array(14).fill(0), 0, 1],
+	// 長さ2の符号が1つ、値は 0。DC（0x00）と AC（0x10）。
+	dht: [
+		0xff,
+		0xc4,
+		0x00,
+		0x26,
+		0x00,
+		0,
+		1,
+		...new Array(14).fill(0),
+		0,
+		0x10,
+		0,
+		1,
+		...new Array(14).fill(0),
+		0
+	],
 	sos: [0xff, 0xda, 0x00, 0x08, 1, 1, 0x00, 0, 0x3f, 0],
 	data: [0x7f, 0xff, 0x00, 0x12],
 	eoi: [0xff, 0xd9]

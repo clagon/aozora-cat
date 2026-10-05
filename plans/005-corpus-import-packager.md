@@ -215,20 +215,27 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   downloads (`concurrency`, default 4, shared across works), so a work with many
   images cannot open many connections at once. Only
   `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
-  are accepted. The content is checked structurally rather than trusted (nothing
-  is decoded to pixels): a PNG must have every chunk's CRC right, a valid IHDR
-  (color type, bit depth, interlace), its PLTE where needed, consecutive IDAT
-  chunks, IEND last with nothing after it, and an IDAT that inflates to exactly
-  the size its rows need with valid filter bytes; a GIF must have its blocks
-  (extensions, at least one image whose own size is within the limits and whose
-  pixel data is not empty, LZW code size 2 to 8) follow each other to a
-  trailer that is the last byte; a JPEG must have a quantization table, one frame
-  and a scan with entropy data before an EOI that is the last two bytes. Sides
-  are at most 10,000 px, the area at most 16 million pixels, the file 8 MiB.
-  Header-only or truncated images are rejected as `invalid-image`. Only PNGs
-  were exercised against official files (the approved works have no JPEG or
-  GIF), so a legitimate JPEG or GIF that fails here would show up in the failure
-  list rather than ship. A readable image is kept under `raw/<sha256>`
+  are accepted. The content is checked rather than trusted (not decoded to pixels): a PNG
+  must have every chunk's CRC right, a valid IHDR (color type, bit depth,
+  interlace), its PLTE where needed, consecutive IDAT chunks, IEND last with
+  nothing after it, and an IDAT that inflates to exactly the size its rows need
+  with valid filter bytes; a GIF must have its blocks follow each other to a
+  trailer that is the last byte, and every image's LZW stream must decode, by
+  the specification's code widths and dictionary growth, to exactly the pixels
+  of that image's own descriptor (within the size limits); a JPEG must have
+  well-formed quantization and Huffman tables, one baseline, extended or
+  progressive Huffman frame whose components and sampling factors are valid,
+  scans that reference existing components (and, for baseline, existing tables)
+  with non-empty entropy data, and an EOI that is the last two bytes (arithmetic
+  coding and other frame types are not accepted). Sides are at most 10,000 px,
+  the area at most 16 million pixels, the file 8 MiB. Header-only or truncated
+  images are rejected as `invalid-image`. The validators are tested against
+  images from real encoders (ImageMagick, libjpeg, giflib: gray, palette,
+  interlaced, subsampled and progressive variants, every truncation of each
+  rejected) and the GIF specification's 1x1 example, besides the official PNGs
+  fetched from the site; the approved works contain no JPEG or GIF, so those
+  two are checked only against encoder output, and a legitimate one that fails
+  here would show up in the failure list rather than ship. A readable image is kept under `raw/<sha256>`
   with its validators; later runs reuse it without a request, and
   `revalidateImages` checks with `If-None-Match` / `If-Modified-Since`.
 - `ImageLoader` forgets a successful result as soon as it resolves (the bytes

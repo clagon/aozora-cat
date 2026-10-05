@@ -11,17 +11,64 @@ import {
 	sniffImage
 } from './images.ts';
 import { deflateSync } from 'node:zlib';
+import { REAL_IMAGES } from './real-images.ts';
 import {
 	PNG_SIGNATURE,
 	chunk,
 	gif,
 	idatFor,
+	lzw,
+	subBlocks,
 	ihdr,
 	iend,
 	jpeg,
 	jpegParts,
 	png
 } from './test-images.ts';
+
+describe('sniffImage: 本物のエンコーダーの画像', () => {
+	it('実在の符号化（グレー・パレット・インターレース・標本化・プログレッシブ）を、読む', () => {
+		for (const [name, { mime, bytes }] of Object.entries(REAL_IMAGES))
+			expect(sniffImage(bytes), name).toEqual({ mime, width: 24, height: 16 });
+	});
+
+	it('どの画像も、途中で切れたものと、余りのついたもの、中ほどを壊したものは、読まない', () => {
+		for (const [name, { bytes }] of Object.entries(REAL_IMAGES)) {
+			// 先頭から途中まで（すべての長さ）。
+			for (let n = 0; n < bytes.length; n++)
+				expect(
+					sniffImage(bytes.subarray(0, n)),
+					`${name} を ${n} バイトで切る`
+				).toBeNull();
+			expect(
+				sniffImage(Uint8Array.from([...bytes, 0])),
+				`${name} に余り`
+			).toBeNull();
+		}
+	});
+
+	it('圧縮データの中を壊した PNG・GIF は、読まない', () => {
+		const flip = (bytes: Uint8Array, at: number) => {
+			const c = Uint8Array.from(bytes);
+			c[at] ^= 0xff;
+			return c;
+		};
+		// PNG は CRC、GIF は復号できない符号で、拒む。
+		for (const name of ['base.png', 'pal.png', 'ilace.png']) {
+			const { bytes } = REAL_IMAGES[name];
+			expect(
+				sniffImage(flip(bytes, Math.floor(bytes.length / 2))),
+				name
+			).toBeNull();
+		}
+		const gifBytes = REAL_IMAGES['pal.gif'].bytes;
+		let rejected = 0;
+		for (let at = 6; at < gifBytes.length; at++)
+			if (sniffImage(flip(gifBytes, at)) === null) rejected++;
+		// 色表や画面の情報を壊しても読めるものがあるので、すべてではないが、多くを拒む。
+		expect(rejected).toBeGreaterThan(gifBytes.length / 2);
+	});
+});
 
 describe('sniffImage: 構造', () => {
 	const U = (...n: ArrayLike<number>[]) =>
@@ -135,6 +182,20 @@ describe('sniffImage: 構造', () => {
 		);
 	});
 
+	it('GIF: 規格書に載る最小の 1×1 の画像（符号 4・0・5）を、読む', () => {
+		const known = Uint8Array.from(
+			'47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b'.match(
+				/../g
+			) ?? [],
+			(h) => parseInt(h, 16)
+		);
+		expect(sniffImage(known)).toEqual({
+			mime: 'image/gif',
+			width: 1,
+			height: 1
+		});
+	});
+
 	it('GIF: ブロックの連なりが正しければ読み、画像がない・途中で切れた・終わりの印がない・続きがある画像は読まない', () => {
 		expect(sniffImage(gif(7, 9))).toEqual({
 			mime: 'image/gif',
@@ -184,6 +245,43 @@ describe('sniffImage: 構造', () => {
 			[...g.slice(0, 30), 0, ...g.slice(30)],
 			'空のブロックのあとに本体が来ても、終わりの印が続かない'
 		);
+		// 圧縮された画素が、規格どおりに復号できて、画像の大きさとぴったり合うこと。
+		const withData = (data: number[], w = 16, h = 16) =>
+			Uint8Array.from([...gif(w, h).slice(0, 30), ...subBlocks(data), 0x3b]);
+		expect(sniffImage(withData(lzw(256)))).not.toBeNull();
+		expect(sniffImage(withData(lzw(255)))).toBeNull(); // 画素が足りない
+		expect(sniffImage(withData(lzw(257)))).toBeNull(); // 画素が多い
+		expect(sniffImage(withData([0x4c]))).toBeNull(); // 1バイトでは、クリア・画素・終了が入らない
+		expect(sniffImage(withData(lzw(256).slice(0, -2)))).toBeNull(); // 終了符号がない
+		expect(sniffImage(withData([0x0c]))).toBeNull(); // クリア符号のあとに、すぐ終了
+		// 辞書にない符号（next より先）や、最初の符号が文字の範囲外のものは、復号できない。
+		expect(sniffImage(withData([0b00_111_100, 0b0000_0111]))).toBeNull();
+		// 実際に辞書が伸びて、符号の幅が増える長い列（256画素を連続して符号化）も復号できる。
+		const noClear: number[] = [];
+		let acc = 0;
+		let have = 0;
+		let width = 3;
+		let next = 6;
+		const put = (code: number) => {
+			acc |= code << have;
+			have += width;
+			while (have >= 8) {
+				noClear.push(acc & 255);
+				acc >>>= 8;
+				have -= 8;
+			}
+		};
+		put(4);
+		for (let i = 0; i < 256; i++) {
+			put(0);
+			if (i > 0) {
+				next++;
+				if (next === 1 << width && width < 12) width++;
+			}
+		}
+		put(5);
+		if (have > 0) noClear.push(acc & 255);
+		expect(sniffImage(withData(noClear))).not.toBeNull();
 		// 拡張ブロックの連なりも、読み飛ばせる。
 		expect(
 			sniffImage(
@@ -230,6 +328,59 @@ describe('sniffImage: 構造', () => {
 		bad(
 			make(p.soi, [0xff, 0xdb, 0xff, 0xff], p.sof, p.sos, p.data, p.eoi),
 			'セグメントの長さが範囲外'
+		);
+		const ok = (...parts: number[][]) => make(p.soi, ...parts, p.eoi);
+		// 中身のない・形の合わない表や成分の定義は、マーカーがあっても読まない。
+		bad(ok([0xff, 0xdb, 0, 2], p.sof, p.dht, p.sos, p.data), '空の量子化表');
+		bad(
+			ok(p.dqt, [0xff, 0xc0, 0, 8, 8, 0, 1, 0, 1, 0], p.dht, p.sos, p.data),
+			'成分のないフレーム'
+		);
+		bad(
+			ok(p.dqt, p.sof, p.dht, [0xff, 0xda, 0, 6, 0, 0, 0x3f, 0], p.data),
+			'成分のないスキャン'
+		);
+		bad(
+			ok(p.dqt, p.sof, p.dht, [0xff, 0xda, 0, 8, 1, 9, 0, 0, 0x3f, 0], p.data),
+			'フレームにない成分'
+		);
+		bad(ok(p.dqt, p.sof, [0xff, 0xc4, 0, 2], p.sos, p.data), '空のハフマン表');
+		bad(ok(p.dqt, p.sof, p.sos, p.data), 'ハフマン表がない');
+		bad(
+			ok(p.dqt, p.sof, p.dht.slice(0, 22), p.sos, p.data),
+			'ハフマン表の長さが合わない'
+		);
+		const sofTq = [...p.sof];
+		sofTq[12] = 2; // 量子化表 2 は定義されていない
+		bad(ok(p.dqt, sofTq, p.dht, p.sos, p.data), '未定義の量子化表');
+		const sofHv = [...p.sof];
+		sofHv[11] = 0x51; // 標本化比 5
+		bad(ok(p.dqt, sofHv, p.dht, p.sos, p.data), '標本化比が範囲外');
+		const arithmetic = [...p.sof];
+		arithmetic[1] = 0xc9; // 算術符号
+		bad(ok(p.dqt, arithmetic, p.dht, p.sos, p.data), '算術符号は扱わない');
+		const progressive = [...p.sof];
+		progressive[1] = 0xc2;
+		expect(
+			sniffImage(ok(p.dqt, progressive, p.dht, p.sos, p.data))
+		).not.toBeNull();
+		const twoTables = [
+			0xff,
+			0xdb,
+			0,
+			131,
+			0,
+			...new Array(64).fill(1),
+			1,
+			...new Array(64).fill(1)
+		];
+		bad(
+			ok(twoTables, p.sof, p.dht, p.sos, p.data),
+			'精度1の表の長さが合わない'
+		);
+		bad(
+			make(p.soi, p.dqt, p.sof, p.dht, p.sos, [0xff, 0xd0], p.eoi),
+			'RST だけの符号化データ'
 		);
 	});
 });
