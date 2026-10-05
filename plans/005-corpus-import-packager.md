@@ -190,6 +190,47 @@ data, provenance manifest, failure list, removed-work tombstones, and counts.
 **Verify**: `pnpm corpus:validate <output>` exits 0 only when total assets are
 below 20,000, every file is at most 25 MiB, and every reference resolves.
 
+Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`):
+
+- Asset format (`Asset`, version 1): one gzip-compressed JSON file per work,
+  `works/<id>.json.gz`, holding the validated work, and every image the work
+  references (gaiji, illustrations, ruby-base images, captions) as base64 under
+  its URL. Images are inlined rather than shared files so that the file count
+  stays near the number of works (the free limit is 20,000 files); gaiji images
+  are tiny, so duplicating them costs little. gzip is used because browsers can
+  decompress it with `DecompressionStream`; Brotli is not available there.
+- `parseAsset` / `parseAssetPart` reject unknown keys, future formats, images the
+  work does not reference, bad MIME types, sizes, and base64, and image part
+  names that do not belong to the work. `missingImages` reports references that
+  are not satisfied by the asset or its parts.
+- Splitting happens only when a work's asset exceeds 25 MiB: the images move to
+  `works/<id>.images-<n>.json.gz` (each group packed to 90% of the limit by
+  uncompressed size, then checked after compression) and the main asset lists
+  them in `imageParts`. The text of a work is never split; a work that still
+  does not fit fails with `work-too-large`, a single image that does not fit
+  fails with `image-too-large`, and more than 1,000 parts fails with
+  `too-many-parts`.
+- Images are fetched by `ImageLoader`, one request per URL per process, through
+  the same politeness gate as bodies (`createGate`). Only
+  `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
+  are accepted. The content is sniffed rather than trusted: PNG, JPEG or GIF with
+  a readable header and a proper end marker, sides up to 10,000 px, at most
+  40 million pixels and 8 MiB. A readable image is kept under `raw/<sha256>`
+  with its validators; later runs reuse it without a request, and
+  `revalidateImages` checks with `If-None-Match` / `If-Modified-Since`.
+- `packRun` packs the converted works of a verified run into an empty output
+  directory (locked while it writes). A work whose image cannot be fetched or is
+  invalid is returned as a failure (`image-<reason>` with the URL) and is not
+  shipped; the other works are still written.
+- Real check (the official site, 5 images at 800 ms intervals): gaiji and
+  illustration PNGs sniff correctly. The official XHTML also links
+  `gaiji/others/xxxx.png`, which returns 404, so a work using it fails
+  packaging with `image-fetch-status` and appears in the failure list instead
+  of shipping a broken image.
+- Still to do in Step 3: the release assembly (catalog/search shards, feature
+  and recommendation data, provenance manifest, failure list, tombstones,
+  counts) and `pnpm corpus:validate`.
+
 ### Step 4: Produce a reviewer-facing diff
 
 Compare current and candidate manifests. Report additions, changes, removals,

@@ -21,7 +21,7 @@ import {
 	fetchResource,
 	type FetchOptions
 } from './download.ts';
-import { MAX_TIMER_MS, sleep } from './time.ts';
+import { createGate, MAX_TIMER_MS } from './time.ts';
 import { acquireLock, readOptional, sha256, writeAtomic } from './store.ts';
 import type { Diagnostic as ConversionDiagnostic } from '../../converter/src/types.ts';
 import type {
@@ -179,20 +179,7 @@ async function execute(options: RunOptions): Promise<RunResult> {
 	let next = 0;
 	/** 作業者が1つでも予期しない失敗をしたら、残りは新しい作品を取らない。 */
 	let broken = false;
-	// 通信を始める順番を、1つずつ並べる。待ちを先に予約する方式だと、処理が長く止まったとき、予約した
-	// 待ちが一斉に切れて、通信がまとめて始まる。順番が来たときに、前の通信の開始から間隔が空いて
-	// いるかを、その時点で確かめる。
-	let queue: Promise<void> = Promise.resolve();
-	let lastStart = -Infinity;
-	const waitTurn = (): Promise<void> => {
-		const turn = queue.then(async () => {
-			const wait = lastStart + minIntervalMs - performance.now();
-			if (wait > 0) await sleep(wait);
-			lastStart = performance.now();
-		});
-		queue = turn.catch(() => {});
-		return turn;
-	};
+	const waitTurn = createGate(minIntervalMs);
 
 	// 穴の空いた配列は every が飛ばすので、未完了を数え間違える。undefined で埋めておく。
 	const records: (WorkRecord | undefined)[] = targets.map(() => undefined);
@@ -648,6 +635,31 @@ function parseManifest(text: string): Manifest | null {
 }
 
 /**
+ * 終わった実行を読み、中身を確かめる。manifest が読める・件数が合う、記録が示す作品のファイルが
+ * すべてあり、ハッシュと大きさが合うことを確かめ、合わなければ拒む。
+ */
+export async function verifyRun(
+	root: string,
+	runId: string
+): Promise<Manifest> {
+	if (!RUN_ID.test(runId))
+		throw new CommitRefused(`runId が使えません: ${runId}`);
+	const text = await readOptional(runPath(root, runId, 'manifest.json'));
+	if (text === null)
+		throw new CommitRefused(`実行 ${runId} は、終わっていません`);
+	const manifest = parseManifest(text.toString('utf-8'));
+	if (!manifest) throw new CommitRefused('manifest が読めません');
+	for (const r of manifest.records)
+		if (!(await artifactOk(root, runId, r)))
+			throw new CommitRefused(`作品 ${r.id} のファイルが、記録と合いません`);
+	return manifest;
+}
+
+/** 実行が作った作品のファイルの置き場所。 */
+export const workFilePath = (root: string, runId: string, id: string) =>
+	runPath(root, runId, 'works', `${id}.json`);
+
+/**
  * 終わった実行を、最後に正常な実行にする。
  * 終わっていない、manifest が壊れている、作品のファイルが記録と合わない、1件もない、
  * 失敗が多すぎる実行は拒み、これまでの current を動かさない。
@@ -659,23 +671,12 @@ export async function commitRun(
 ): Promise<void> {
 	if (!(maxFailureRatio >= 0 && maxFailureRatio <= 1))
 		throw new RangeError(`maxFailureRatio が使えません: ${maxFailureRatio}`);
-	if (!RUN_ID.test(runId))
-		throw new CommitRefused(`runId が使えません: ${runId}`);
-	const text = await readOptional(runPath(root, runId, 'manifest.json'));
-	if (text === null)
-		throw new CommitRefused(`実行 ${runId} は、終わっていません`);
-	const manifest = parseManifest(text.toString('utf-8'));
-	if (!manifest) throw new CommitRefused('manifest が読めません');
-	const { counts } = manifest;
+	const { counts } = await verifyRun(root, runId);
 	if (counts.total === 0) throw new CommitRefused('作品が1件もありません');
 	if (counts.failed / counts.total > maxFailureRatio)
 		throw new CommitRefused(
 			`失敗が多すぎます（${counts.failed}/${counts.total}）`
 		);
-	// 記録が示す作品のファイルが、すべてあり、ハッシュと大きさが合うこと。
-	for (const r of manifest.records)
-		if (!(await artifactOk(root, runId, r)))
-			throw new CommitRefused(`作品 ${r.id} のファイルが、記録と合いません`);
 	await writeAtomic(
 		join(root, 'current.json'),
 		`${JSON.stringify({ runId })}\n`
