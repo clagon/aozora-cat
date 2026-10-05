@@ -54,6 +54,9 @@ export async function fetchResource(
 		lastModified
 	}: FetchOptions & Validators
 ): Promise<Fetched> {
+	// NaN や負の値だと、大きさの比較がすべて偽になり、上限が働かなくなる。
+	if (!(maxBytes >= 0))
+		throw new RangeError(`maxBytes が使えません: ${maxBytes}`);
 	let last: FetchError | undefined;
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		if (attempt > 0) await sleep(retryDelayMs * 2 ** (attempt - 1));

@@ -85,6 +85,11 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
 		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
+	// NaN や負の値は、大きさの上限を働かなくする。通信を始める前に、設定の誤りとして断る。
+	const limit = options.fetchOptions?.maxBytes;
+	if (limit !== undefined && !(limit >= 0))
+		throw new RangeError(`fetchOptions.maxBytes が使えません: ${limit}`);
+
 	// 作品IDはファイル名に、本文のURLは通信の宛先になる。呼び出し側が組んだ値でも、公式以外や
 	// パスの一部、別の作品のものを持ち込ませない。何かを読み書きする前に調べる。
 	for (const w of options.works) {

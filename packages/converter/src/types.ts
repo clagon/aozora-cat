@@ -1,7 +1,7 @@
 import type { Person, Work } from '../../../src/lib/domain/work.ts';
 
 /** 変換器のバージョン。出力の来歴に記録する。出力が変わる修正のたびに上げる。 */
-export const CONVERTER_VERSION = '1.1.0';
+export const CONVERTER_VERSION = '1.2.0';
 
 /** 公式の作品一覧（カタログ）にある、1作品ぶんの情報。変換は本文とこの情報から作品を組み立てる。 */
 export type WorkSource = {

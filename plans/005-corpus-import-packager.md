@@ -140,7 +140,7 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   sees the failure. When a previous result is reused, `attempts` always reflects
   the current invocation.
 - The body size ceiling (64 MiB) can be lowered through `fetchOptions` but not
-  raised.
+  raised; a `NaN` or negative `maxBytes` is refused before any request.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
   interval between request starts (default 100 ms), applied to every HTTP
   attempt including retries. An abort signal stops
@@ -160,7 +160,8 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   `selectBodies`), so a caller cannot make it request their bodies.
 - The work schema now accepts the official number-only file names
   (`733.html`, 116 works) as provenance; before, it required `<id>_<n>`, so
-  those works could not be converted.
+  those works could not be converted. This changes what the converter
+  produces, so `CONVERTER_VERSION` is now 1.2.0.
 - Known limits: failed works are requested again on the next run because no
   validators are kept for failures; image fetching and packaging are Step 3.
 

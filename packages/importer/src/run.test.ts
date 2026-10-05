@@ -279,6 +279,17 @@ describe('runImport', () => {
 		});
 	});
 
+	it('本文の大きさの上限に NaN や負の値を渡すと、通信を始める前に断る', async () => {
+		serveXhtml(1);
+		for (const maxBytes of [Number.NaN, -1]) {
+			await expect(
+				run('r1', [work(1)], { fetchOptions: { ...fast, maxBytes } })
+			).rejects.toThrow(RangeError);
+		}
+		expect(hits).toEqual([]);
+		expect(await readdir(root)).toEqual([]);
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);

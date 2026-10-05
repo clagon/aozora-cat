@@ -79,7 +79,9 @@ Decisions made in this step:
   character). Identical blocks get an occurrence suffix (`-2`); an empty line
   also mixes in the previous block so blank lines do not collide. Inserting or
   deleting other blocks therefore never changes an id. `CONVERTER_VERSION` is
-  1.1.0 because the id scheme changed; `schemaVersion` stays 1.
+  1.1.0 because the id scheme changed, and 1.2.0 because the schema began to
+  accept number-only official file names (`733.html`) in provenance, which
+  turned a conversion failure into a success; `schemaVersion` stays 1.
 - A saved position is `{ blockId, offset, before, after, percent }`: up to 24
   characters of context on each side, within the block, and the share of the
   whole work. Offsets count UTF-16 units, like the Plan 003 prototype.

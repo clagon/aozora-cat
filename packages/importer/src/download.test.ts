@@ -94,6 +94,15 @@ describe('fetchBytes', () => {
 		);
 	});
 
+	it('大きさの上限が NaN や負の値なら、通信せずに断る', async () => {
+		const url = await serve((_, res) => res.end('x'));
+		for (const maxBytes of [Number.NaN, -1])
+			await expect(fetchBytes(url, { maxBytes, ...fast })).rejects.toThrow(
+				RangeError
+			);
+		expect(seen).toHaveLength(0);
+	});
+
 	it('503 は再試行して成功し、404 は再試行しない', async () => {
 		let n = 0;
 		const url = await serve((_, res) => {
