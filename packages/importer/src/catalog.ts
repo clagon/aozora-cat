@@ -288,6 +288,9 @@ export function checkWork(w: CatalogWork): string | null {
 	const card = CARD.exec(w.cardUrl);
 	if (!card || card[2] !== String(Number(w.id)))
 		return `図書カードのURLが作品 ${w.id} と合いません`;
+	// 作品の人物のものでない図書カードは、別の作品の人物を著者として残してしまう。
+	if (!w.people.some((p) => p.id === card[1]))
+		return `作品 ${w.id} の図書カードの人物が、作品の人物にいません`;
 	for (const [path, ref] of [
 		['xhtml', w.xhtml],
 		['text', w.text]

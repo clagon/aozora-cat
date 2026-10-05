@@ -320,6 +320,7 @@ describe('runImport', () => {
 			{ ...w, xhtml: { ...w.xhtml!, updated: '2025-02-31' } },
 			{ ...w, cardUrl: 'https://example.com/cards/000879/card1.html' },
 			{ ...w, cardUrl: `${OFFICIAL}/cards/000879/card2.html` },
+			{ ...w, people: [{ id: '000999', role: 'author', name: '別人' }] },
 			{
 				...w,
 				workCopyright: 'あり',
@@ -661,6 +662,42 @@ describe('失敗しても、最後に正常な実行を壊さない', () => {
 		await expect(commitRun(root, 'r2')).rejects.toThrow(CommitRefused);
 		expect(await readCurrent(root)).toBe('r1');
 		expect(await manifestText('r1')).toBe(before);
+	});
+
+	it('作品のファイルが無い・記録と合わない、manifest が壊れた実行は、確定を拒まれ、current は変わらない', async () => {
+		serveXhtml(1);
+		serveXhtml(2);
+		const works = [work(1), work(2)];
+		await run('good', works);
+		await commitRun(root, 'good');
+
+		const dir = (id: string, ...rest: string[]) =>
+			join(root, 'runs', id, ...rest);
+		const edit = async (id: string, change: (m: Manifest) => void) => {
+			const m = JSON.parse(await readFile(dir(id, 'manifest.json'), 'utf-8'));
+			change(m);
+			await writeFile(dir(id, 'manifest.json'), JSON.stringify(m));
+		};
+		const check = async (id: string, spoil: () => Promise<void>) => {
+			await run(id, works);
+			await spoil();
+			await expect(commitRun(root, id), id).rejects.toThrow(CommitRefused);
+			expect(await readCurrent(root)).toBe('good');
+		};
+		await check('missing', () => rm(dir('missing', 'works', '000001.json')));
+		await check('altered', () =>
+			writeFile(dir('altered', 'works', '000002.json'), '{}')
+		);
+		await check('counts', () => edit('counts', (m) => (m.counts.failed = 5)));
+		await check('garbled', () =>
+			writeFile(dir('garbled', 'manifest.json'), '{"schemaVersion":1')
+		);
+		await check('badrecord', () =>
+			edit('badrecord', (m) => {
+				// 記録の必須の項目が欠けている。
+				delete (m.records[0] as Partial<WorkRecord>).id;
+			})
+		);
 	});
 
 	it('終わっていない実行、1件もない実行、失敗が多い実行は確定できない。少なければ確定できる', async () => {

@@ -538,9 +538,35 @@ function parseStarted(
 
 export class CommitRefused extends Error {}
 
+/** manifest を読み、記録を作り直す。形が合わない・件数が合わないものは null。 */
+function parseManifest(text: string): Manifest | null {
+	try {
+		const v: unknown = JSON.parse(text);
+		if (!isObj(v) || v.schemaVersion !== 1 || !isObj(v.counts)) return null;
+		const converterVersion = str(v.converterVersion);
+		const records = all(v.records, parseRecord);
+		if (converterVersion === null || records === null) return null;
+		const counts = {
+			total: records.length,
+			converted: records.filter((r) => r.status === 'converted').length,
+			failed: records.filter((r) => r.status === 'failed').length
+		};
+		const c = v.counts;
+		return c.total === counts.total &&
+			c.converted === counts.converted &&
+			c.failed === counts.failed &&
+			new Set(records.map((r) => r.id)).size === records.length
+			? { schemaVersion: 1, converterVersion, counts, records }
+			: null;
+	} catch {
+		return null;
+	}
+}
+
 /**
  * 終わった実行を、最後に正常な実行にする。
- * 終わっていない、1件もない、失敗が多すぎる実行は拒み、これまでの current を動かさない。
+ * 終わっていない、manifest が壊れている、作品のファイルが記録と合わない、1件もない、
+ * 失敗が多すぎる実行は拒み、これまでの current を動かさない。
  */
 export async function commitRun(
 	root: string,
@@ -552,12 +578,27 @@ export async function commitRun(
 	const text = await readOptional(runPath(root, runId, 'manifest.json'));
 	if (text === null)
 		throw new CommitRefused(`実行 ${runId} は、終わっていません`);
-	const { counts } = JSON.parse(text.toString('utf-8')) as Manifest;
+	const manifest = parseManifest(text.toString('utf-8'));
+	if (!manifest) throw new CommitRefused('manifest が読めません');
+	const { counts } = manifest;
 	if (counts.total === 0) throw new CommitRefused('作品が1件もありません');
 	if (counts.failed / counts.total > maxFailureRatio)
 		throw new CommitRefused(
 			`失敗が多すぎます（${counts.failed}/${counts.total}）`
 		);
+	// 記録が示す作品のファイルが、すべてあり、ハッシュと大きさが合うこと。
+	for (const r of manifest.records) {
+		if (r.status !== 'converted') continue;
+		const work = await readOptional(
+			runPath(root, runId, 'works', `${r.id}.json`)
+		);
+		if (
+			work === null ||
+			sha256(work) !== r.workSha256 ||
+			work.length !== r.workBytes
+		)
+			throw new CommitRefused(`作品 ${r.id} のファイルが、記録と合いません`);
+	}
 	await writeAtomic(
 		join(root, 'current.json'),
 		`${JSON.stringify({ runId })}\n`

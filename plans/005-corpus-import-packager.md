@@ -136,12 +136,13 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   interval between request starts (default 100 ms), applied to every HTTP
   attempt including retries. An abort signal stops
   starting new works and leaves the run resumable.
-- Rollback: `commitRun` refuses a run that is unfinished, empty, or whose failure
-  ratio exceeds `maxFailureRatio` (default 2%), and leaves `current.json`
-  untouched. Because a run never writes outside its own directory and `raw/`,
+- Rollback: `commitRun` refuses a run that is unfinished, has an unreadable or
+  inconsistent manifest, has a converted work whose file is missing or does not
+  match its recorded hash and size, is empty, or whose failure ratio exceeds
+  `maxFailureRatio` (default 2%), and leaves `current.json` untouched. Because a run never writes outside its own directory and `raw/`,
   a failed run cannot alter the last known-good release.
 - `checkWork` validates every work before anything is read, written, or
-  requested: a six-digit unique ID, a card URL for that work, and body URLs on
+  requested: a six-digit unique ID, a card URL for that work whose person directory is one of the work's people, and body URLs on
   the official host, in the same person directory, naming this work (the same
   rules as `parseCatalog`), so a hand-built `CatalogWork[]` cannot turn an ID
   into a path outside the run directory or send a request to another host. Run IDs must start with an alphanumeric character for the same
