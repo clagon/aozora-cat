@@ -2,8 +2,7 @@
 // 前回の検証子があれば条件付きで取得する。形式を確かめた画像だけを、アセットへ渡す。
 
 import { join } from 'node:path';
-import type { AssetImage, ImageMime } from '../../../src/lib/domain/asset.ts';
-import { MAX_IMAGE_SIDE } from '../../../src/lib/domain/work.ts';
+import type { AssetImage } from '../../../src/lib/domain/asset.ts';
 import {
 	assertFetchOptions,
 	FetchError,
@@ -11,89 +10,15 @@ import {
 	type FetchOptions
 } from './download.ts';
 import { readOptional, sha256, writeAtomic } from './store.ts';
+import { MAX_IMAGE_BYTES, sniffImage } from './sniff.ts';
 import { assertPacing, createLimiter } from './time.ts';
 
-/** 1枚の大きさの上限（バイト）と、画素数の上限。端末で展開するときの負荷を抑える。 */
-export const MAX_IMAGE_BYTES = 8 * 2 ** 20;
-export const MAX_IMAGE_PIXELS = 40_000_000;
-
-export type Sniffed = { mime: ImageMime; width: number; height: number };
-
-const u16 = (b: Uint8Array, at: number) => (b[at] << 8) | b[at + 1];
-const u32 = (b: Uint8Array, at: number) =>
-	((b[at] << 24) | (b[at + 1] << 16) | (b[at + 2] << 8) | b[at + 3]) >>> 0;
-const startsWith = (b: Uint8Array, sig: number[]) =>
-	sig.every((x, i) => b[i] === x);
-
-/**
- * 画像の形式と大きさを、中身から読む。拡張子や応答の種類は信用しない。読めない・壊れている・
- * 大きすぎるものは null。PNG・JPEG・GIF だけを扱い、ヘッダーと終わりの印を確かめる。
- */
-export function sniffImage(b: Uint8Array): Sniffed | null {
-	let found: Sniffed | null = null;
-	if (b.length > MAX_IMAGE_BYTES) return null;
-	if (startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
-		// 先頭の IHDR（13バイト）と、末尾の IEND。
-		const iend = [0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
-		if (
-			b.length >= 8 + 25 + 12 &&
-			u32(b, 8) === 13 &&
-			startsWith(b.subarray(12), [0x49, 0x48, 0x44, 0x52]) &&
-			iend.every((x, i) => b[b.length - 12 + i] === x)
-		)
-			found = { mime: 'image/png', width: u32(b, 16), height: u32(b, 20) };
-	} else if (
-		startsWith(b, [0x47, 0x49, 0x46, 0x38]) &&
-		(b[4] === 0x37 || b[4] === 0x39) &&
-		b[5] === 0x61
-	) {
-		if (b.length >= 14 && b[b.length - 1] === 0x3b)
-			found = {
-				mime: 'image/gif',
-				width: b[6] | (b[7] << 8),
-				height: b[8] | (b[9] << 8)
-			};
-	} else if (startsWith(b, [0xff, 0xd8, 0xff])) {
-		// セグメントをたどって、SOF（大きさ）を探す。SOS（画像データ）より前にあること。
-		let i = 2;
-		while (i + 4 <= b.length && found === null) {
-			if (b[i] !== 0xff) break;
-			const m = b[i + 1];
-			if (m === 0xff) {
-				i += 1;
-				continue;
-			}
-			if (m === 0xd9 || m === 0xda) break;
-			if (m === 0x01 || (m >= 0xd0 && m <= 0xd7)) {
-				i += 2;
-				continue;
-			}
-			const len = u16(b, i + 2);
-			if (len < 2 || i + 2 + len > b.length) break;
-			if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
-				if (len >= 8)
-					found = {
-						mime: 'image/jpeg',
-						width: u16(b, i + 7),
-						height: u16(b, i + 5)
-					};
-				break;
-			}
-			i += 2 + len;
-		}
-		if (b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return null;
-	}
-	if (
-		found === null ||
-		found.width < 1 ||
-		found.height < 1 ||
-		found.width > MAX_IMAGE_SIDE ||
-		found.height > MAX_IMAGE_SIDE ||
-		found.width * found.height > MAX_IMAGE_PIXELS
-	)
-		return null;
-	return found;
-}
+export {
+	MAX_IMAGE_BYTES,
+	MAX_IMAGE_PIXELS,
+	sniffImage,
+	type Sniffed
+} from './sniff.ts';
 
 /** 取り込める画像のURL。公式の外字（/gaiji/）と、作品の files ディレクトリ。 */
 const IMAGE_URL =

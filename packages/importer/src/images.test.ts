@@ -10,7 +10,206 @@ import {
 	MAX_IMAGE_PIXELS,
 	sniffImage
 } from './images.ts';
-import { gif, jpeg, png } from './test-images.ts';
+import { deflateSync } from 'node:zlib';
+import {
+	PNG_SIGNATURE,
+	chunk,
+	gif,
+	idatFor,
+	ihdr,
+	iend,
+	jpeg,
+	jpegParts,
+	png
+} from './test-images.ts';
+
+describe('sniffImage: 構造', () => {
+	const U = (...n: ArrayLike<number>[]) =>
+		Uint8Array.from(n.flatMap((x) => Array.from(x)));
+	const enc = (v: string) => [...v].map((c) => c.charCodeAt(0));
+
+	it('PNG: 色の種類と深さの組み合わせ・インターレース・IDAT の分割は、構造が正しければ読む', () => {
+		const ok = (bytes: Uint8Array) => expect(sniffImage(bytes)).not.toBeNull();
+		ok(U(PNG_SIGNATURE, ihdr(5, 3, 16, 6), idatFor(5, 3, 64), iend()));
+		ok(U(PNG_SIGNATURE, ihdr(5, 3, 1, 0), idatFor(5, 3, 1), iend()));
+		ok(U(PNG_SIGNATURE, ihdr(13, 9, 8, 0, 1), idatFor(13, 9, 8, true), iend()));
+		ok(
+			U(
+				PNG_SIGNATURE,
+				ihdr(3, 2, 8, 3),
+				chunk('PLTE', [0, 0, 0, 255, 255, 255]),
+				idatFor(3, 2),
+				iend()
+			)
+		);
+		// IDAT は連続していれば、いくつに分かれていてもよい。
+		const z = deflateSync(new Uint8Array(2 * (1 + 4)));
+		ok(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2),
+				chunk('IDAT', z.subarray(0, 3)),
+				chunk('IDAT', z.subarray(3)),
+				iend()
+			)
+		);
+		// 付属のチャンク（テキスト）が IDAT の前後にあっても読む。
+		ok(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2),
+				chunk('tEXt', enc('k\0v')),
+				idatFor(4, 2),
+				chunk('tEXt', enc('k\0v')),
+				iend()
+			)
+		);
+	});
+
+	it('PNG: 画像データがない・CRC が合わない・終わりのあとに続きがある・展開した大きさが合わない画像は読まない', () => {
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		bad(U(PNG_SIGNATURE, ihdr(4, 4), iend()), 'IDAT がない');
+		const corrupt = png(8, 8);
+		corrupt[corrupt.length - 20] ^= 0xff;
+		bad(corrupt, 'CRC');
+		bad(U(png(), [0]), 'IEND のあとの余り');
+		bad(U(png(), chunk('tEXt', enc('k\0v'))), 'IEND のあとのチャンク');
+		bad(U(PNG_SIGNATURE, ihdr(4, 4), idatFor(4, 5), iend()), '行が多い');
+		bad(U(PNG_SIGNATURE, ihdr(4, 4), idatFor(4, 3), iend()), '行が足りない');
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 4), chunk('IDAT', [1, 2, 3]), iend()),
+			'展開できない'
+		);
+		const badFilter = deflateSync(
+			Uint8Array.from({ length: 4 * 5 }, (_, i) => (i % 5 === 0 ? 9 : 0))
+		);
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 4), chunk('IDAT', badFilter), iend()),
+			'フィルタの種類'
+		);
+		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2),
+				chunk('IDAT', deflateSync(new Uint8Array(5))),
+				chunk('tEXt', enc('k\0v')),
+				chunk('IDAT', deflateSync(new Uint8Array(5))),
+				iend()
+			),
+			'IDAT が離れている'
+		);
+		bad(
+			U(PNG_SIGNATURE, ihdr(3, 2, 8, 3), idatFor(3, 2), iend()),
+			'PLTE がない'
+		);
+		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(3, 2, 8, 3),
+				idatFor(3, 2),
+				chunk('PLTE', [0, 0, 0]),
+				iend()
+			),
+			'PLTE が IDAT のあと'
+		);
+		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(3, 2, 8, 3),
+				chunk('PLTE', [0, 0]),
+				idatFor(3, 2),
+				iend()
+			),
+			'PLTE の長さ'
+		);
+		bad(U(PNG_SIGNATURE, ihdr(4, 4, 7, 0), idatFor(4, 4), iend()), '深さ');
+		bad(U(PNG_SIGNATURE, ihdr(4, 4, 8, 1), idatFor(4, 4), iend()), '色の種類');
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 4, 8, 2, 2), idatFor(4, 4, 24), iend()),
+			'インターレースの種類'
+		);
+		bad(
+			U(PNG_SIGNATURE, ihdr(13, 9, 8, 0, 1), idatFor(13, 9), iend()),
+			'インターレースなのに平らなデータ'
+		);
+	});
+
+	it('GIF: ブロックの連なりが正しければ読み、画像がない・途中で切れた・終わりの印がない・続きがある画像は読まない', () => {
+		expect(sniffImage(gif(7, 9))).toEqual({
+			mime: 'image/gif',
+			width: 7,
+			height: 9
+		});
+		const g = Array.from(gif());
+		const bad = (bytes: number[], why: string) =>
+			expect(sniffImage(Uint8Array.from(bytes)), why).toBeNull();
+		bad(g.slice(0, g.length - 1), '終わりの印がない');
+		bad([...g, 0], '終わりの印のあとの余り');
+		bad([...g.slice(0, 19), 0x3b], '画像がない');
+		bad([...g.slice(0, 30), 5, 1, 1, 0x3b], 'サブブロックが途中で終わる');
+		bad(
+			g.map((v, i) => (i === 29 ? 1 : v)),
+			'LZW の最小符号長が小さい'
+		);
+		bad(
+			g.map((v, i) => (i === 29 ? 9 : v)),
+			'LZW の最小符号長が大きい'
+		);
+		bad([...g.slice(0, 19), 0x99, ...g.slice(20)], '未知のブロック');
+		bad(
+			g.map((v, i) => (i === 10 ? 0x87 : v)),
+			'色表が長すぎて足りない'
+		);
+		// 拡張ブロックの連なりも、読み飛ばせる。
+		expect(
+			sniffImage(
+				Uint8Array.from([
+					...g.slice(0, 19),
+					0x21,
+					0xfe,
+					3,
+					0x61,
+					0x62,
+					0x63,
+					0,
+					...g.slice(19)
+				])
+			)
+		).not.toBeNull();
+	});
+
+	it('JPEG: 量子化表・フレーム・スキャンの順で、EOI が最後にあれば読み、欠けた・順が違う・空・続きがある画像は読まない', () => {
+		const p = jpegParts(30, 20);
+		const make = (...parts: number[][]) => Uint8Array.from(parts.flat());
+		expect(
+			sniffImage(make(p.soi, p.dqt, p.sof, p.dht, p.sos, p.data, p.eoi))
+		).toEqual({ mime: 'image/jpeg', width: 30, height: 20 });
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		bad(make(p.soi, p.sof, p.sos, p.data, p.eoi), '量子化表がない');
+		bad(make(p.soi, p.dqt, p.sos, p.data, p.eoi), 'フレームがない');
+		bad(
+			make(p.soi, p.dqt, p.sos, p.sof, p.data, p.eoi),
+			'フレームがスキャンのあと'
+		);
+		bad(make(p.soi, p.dqt, p.sof, p.dht, p.data, p.eoi), 'スキャンがない');
+		bad(make(p.soi, p.dqt, p.sof, p.dht, p.sos, p.eoi), '符号化データがない');
+		bad(make(p.soi, p.dqt, p.sof, p.dht, p.sos, p.data), 'EOI がない');
+		bad(
+			make(p.soi, p.dqt, p.sof, p.dht, p.sos, p.data, p.eoi, [0]),
+			'EOI のあとの余り'
+		);
+		bad(
+			make(p.soi, p.dqt, p.sof, p.sof, p.dht, p.sos, p.data, p.eoi),
+			'フレームが2つ'
+		);
+		bad(
+			make(p.soi, [0xff, 0xdb, 0xff, 0xff], p.sof, p.sos, p.data, p.eoi),
+			'セグメントの長さが範囲外'
+		);
+	});
+});
 
 describe('sniffImage', () => {
 	it('PNG・GIF・JPEG の形式と大きさを、中身から読む', () => {
