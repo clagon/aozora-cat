@@ -82,6 +82,11 @@ function pngInfo(b: Uint8Array): Sniffed | null {
 		if (crc32(b.subarray(at + 4, at + 8 + len)) !== u32(b, at + 8 + len))
 			return null;
 		if (at === 8 && type !== 'IHDR') return null;
+		// チャンクの種類は英字。先頭が大文字（必須チャンク）で、知らないものがあれば、復号器は
+		// 画像を拒む。付属のチャンク（先頭が小文字）は読み飛ばしてよい。
+		if (!/^[A-Za-z]{4}$/.test(type)) return null;
+		if (/^[A-Z]/.test(type) && !['IHDR', 'PLTE', 'IDAT', 'IEND'].includes(type))
+			return null;
 		if (type === 'IDAT') {
 			if (idatDone || (color === 3 && !plte)) return null;
 			idat.push(b.subarray(at + 8, at + 8 + len));

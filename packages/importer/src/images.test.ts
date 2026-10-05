@@ -100,6 +100,10 @@ describe('sniffImage: 構造', () => {
 				iend()
 			)
 		);
+		// 知らなくても、付属のチャンク（種類の先頭が小文字）は、読み飛ばせる。
+		ok(
+			U(PNG_SIGNATURE, ihdr(4, 2), chunk('abCD', [1, 2]), idatFor(4, 2), iend())
+		);
 		// 付属のチャンク（テキスト）が IDAT の前後にあっても読む。
 		ok(
 			U(
@@ -145,6 +149,20 @@ describe('sniffImage: 構造', () => {
 				iend()
 			),
 			'IDAT が離れている'
+		);
+		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2),
+				chunk('ABCD', [1, 2]),
+				idatFor(4, 2),
+				iend()
+			),
+			'知らない必須チャンク'
+		);
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 2), idatFor(4, 2), chunk('1234', [1]), iend()),
+			'種類が英字でないチャンク'
 		);
 		bad(
 			U(PNG_SIGNATURE, ihdr(3, 2, 8, 3), idatFor(3, 2), iend()),

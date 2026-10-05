@@ -216,7 +216,8 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   images cannot open many connections at once. Only
   `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
   are accepted. The content is checked rather than trusted (not decoded to pixels): a PNG
-  must have every chunk's CRC right, a valid IHDR (color type, bit depth,
+  must have every chunk's CRC right, no unknown critical chunk (ancillary ones,
+  whose type starts with a lowercase letter, are skipped), a valid IHDR (color type, bit depth,
   interlace), its PLTE where needed, consecutive IDAT chunks, IEND last with
   nothing after it, and an IDAT that inflates to exactly the size its rows need
   with valid filter bytes; a GIF must have its blocks follow each other to a
