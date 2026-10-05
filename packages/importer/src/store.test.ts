@@ -25,55 +25,39 @@ describe('acquireLock', () => {
 		expect(await readdir(join(dir, 'x'))).toEqual([]);
 	});
 
-	it('落ちたロックを調べたあとに、別のプロセスが取り直し終えても、その新しいロックを壊さない', async () => {
+	it('落ちたプロセスのロックは、既定では取り直さず、確かめるよう案内して拒む', async () => {
 		const lock = join(dir, 'x', 'lock');
 		await (
 			await acquireLock(lock)
 		)();
 		await writeFile(lock, '2147483646');
+		await expect(acquireLock(lock)).rejects.toThrow(/動いていません/);
+		// 拒んだだけで、ロックには触れない。
+		expect(await readFile(lock, 'utf-8')).toBe('2147483646');
+	});
 
-		// B は、落ちた持ち主を見たところで止まる。そのあいだに A が取り直し終える。
-		let resume = () => {};
-		const paused = new Promise<void>((r) => (resume = r));
-		let inspected = () => {};
-		const seen = new Promise<void>((r) => (inspected = r));
-		const b = acquireLock(lock, {
-			afterInspect: async () => {
-				inspected();
-				await paused;
-			}
-		});
-		const bResult = b.then(
-			() => 'acquired',
-			(e: unknown) => e
-		);
-		await seen;
-		const releaseA = await acquireLock(lock);
-		resume();
-		expect(await bResult).toBeInstanceOf(LockedError);
-		// A のロックは、そのまま残っている。
+	it('取り直すと明示したときだけ、落ちたプロセスのロックを取り直す。動いているプロセスのロックは取り直さない', async () => {
+		const lock = join(dir, 'x', 'lock');
+		await (
+			await acquireLock(lock)
+		)();
+		await writeFile(lock, '2147483646');
+		const release = await acquireLock(lock, { recoverStale: true });
 		expect(await readFile(lock, 'utf-8')).toBe(String(process.pid));
-		await releaseA();
+		await expect(acquireLock(lock, { recoverStale: true })).rejects.toThrow(
+			/使っています/
+		);
+		expect(await readFile(lock, 'utf-8')).toBe(String(process.pid));
+		await release();
 		expect(await readdir(join(dir, 'x'))).toEqual([]);
 	});
 
-	it('落ちたロックを複数が同時に取り直そうとしても、確保できるのは1つだけ', async () => {
-		for (let round = 0; round < 30; round++) {
-			const lock = join(dir, `r${round}`, 'lock');
-			await (
-				await acquireLock(lock)
-			)();
-			await writeFile(lock, '2147483646');
-			const results = await Promise.allSettled(
-				Array.from({ length: 12 }, () => acquireLock(lock))
-			);
-			expect(
-				results.filter((r) => r.status === 'fulfilled'),
-				`round ${round}`
-			).toHaveLength(1);
-			for (const r of results)
-				if (r.status === 'rejected')
-					expect(r.reason).toBeInstanceOf(LockedError);
-		}
+	it('中身が読めないロックは、持ち主が分からないので、動いていないものとして扱い、既定では拒む', async () => {
+		const lock = join(dir, 'x', 'lock');
+		await (
+			await acquireLock(lock)
+		)();
+		await writeFile(lock, '');
+		await expect(acquireLock(lock)).rejects.toThrow(LockedError);
 	});
 });

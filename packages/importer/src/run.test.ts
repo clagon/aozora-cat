@@ -314,7 +314,7 @@ describe('runImport', () => {
 		expect(await readdir(root)).toEqual([]);
 	});
 
-	it('同じ runId を同時に2つ書かせない。持ち主が終わっているロックは取り直し、終えたあとは解放する', async () => {
+	it('同じ runId を同時に2つ書かせない。落ちたロックは明示したときだけ取り直し、終えたあとは解放する', async () => {
 		serveXhtml(1);
 		const lock = join(root, 'runs', 'r1', 'lock');
 		const both = await Promise.allSettled([
@@ -333,8 +333,15 @@ describe('runImport', () => {
 		await rm(join(root, 'runs', 'r1', 'manifest.json'));
 		await writeFile(lock, String(process.pid));
 		await expect(run('r1', [work(1)])).rejects.toThrow(/使っています/);
+		// 持ち主が終わっているロックは、既定では取り直さず、確かめるまで断る。
+		hits = [];
 		await writeFile(lock, '2147483646');
-		expect((await run('r1', [work(1)])).complete).toBe(true);
+		await expect(run('r1', [work(1)])).rejects.toThrow(/動いていません/);
+		expect(hits.length).toBe(0);
+		// 取り直すと明示したときだけ、取り直す。
+		expect(
+			(await run('r1', [work(1)], { recoverStaleLock: true })).complete
+		).toBe(true);
 		// 失敗して終わった場合も、ロックを解放する。
 		await rm(join(root, 'runs', 'r1', 'manifest.json'));
 		await rm(join(root, 'runs', 'r1', 'records', '000001.json'));

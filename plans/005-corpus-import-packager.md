@@ -136,11 +136,12 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   be run again.
 - A run directory has one writer at a time: `runImport` takes an exclusive lock
   (`runs/<runId>/lock`, created by hard-linking a file that already holds the
-  owner's PID) and releases it when it ends or fails. A live owner is refused;
-  a lock left by a dead process is taken over only while holding a
-  `lock.guard` file (also created exclusively), after re-reading the owner, so
-  two processes recovering the same dead lock cannot remove each other's new
-  lock.
+  owner's PID) and releases it when it ends or fails. A live owner is always
+  refused. A lock left by a dead process is also refused by default, with
+  instructions to check and either pass `recoverStaleLock` or delete the file:
+  automatic takeover cannot be made safe when several processes recover the same
+  dead lock at once (each fix of the guard or the rename only moved the race), so
+  it is left to a caller who can say that nothing else is running.
 - An unexpected failure in one worker (for example a filesystem error) stops the
   others from taking new works, and `runImport` waits for every worker to settle
   before it rejects, so nothing keeps requesting or writing after the caller

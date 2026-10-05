@@ -50,6 +50,11 @@ export type RunOptions = {
 	revalidate?: boolean;
 	/** 止めると、取得中のものが終わった時点で戻る。同じ runId でやり直すと、続きから進む。 */
 	signal?: AbortSignal;
+	/**
+	 * 落ちて残ったロック（持ち主のプロセスが動いていないもの）を取り直す。ほかに動いている取り込みが
+	 * ないと言い切れるときだけ指定する。既定では、残ったロックを人が確かめるまで、実行を断る。
+	 */
+	recoverStaleLock?: boolean;
 	fetchOptions?: Partial<FetchOptions>;
 };
 
@@ -105,7 +110,9 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 		throw new Error('作品IDが重複しています');
 
 	// 同じ作業領域・同じ runId を、同時に2つ書かせない。
-	const release = await acquireLock(runPath(root, runId, 'lock'));
+	const release = await acquireLock(runPath(root, runId, 'lock'), {
+		recoverStale: options.recoverStaleLock === true
+	});
 	try {
 		return await execute(options);
 	} finally {
