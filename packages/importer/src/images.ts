@@ -116,12 +116,19 @@ export class ImageLoader {
 				this.#opts.revalidate === true && !this.#checked.has(url);
 			p = this.#fetchOne(url, revalidate);
 			this.#memo.set(url, p);
-			void p.then((r) => {
-				if (r.ok) {
+			// 後始末の連鎖でも、予期しない失敗（ファイルシステムなど）を握っておく。握らないと、呼び出し側が
+			// 失敗を受け取っても、別の約束が「未処理の拒否」としてプロセスを落とす。失敗は覚えず、次は取り直す。
+			void p.then(
+				(r) => {
+					if (r.ok) {
+						this.#memo.delete(url);
+						this.#checked.add(url);
+					}
+				},
+				() => {
 					this.#memo.delete(url);
-					this.#checked.add(url);
 				}
-			});
+			);
 		}
 		return p;
 	}

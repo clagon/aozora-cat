@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -599,6 +599,27 @@ describe('ImageLoader', () => {
 		expect((await l.load(missing)).ok).toBe(false);
 		expect(hits).toHaveLength(2);
 		expect(l.retained).toBe(1);
+	});
+
+	it('控えの読み書きが予期しない理由で失敗しても、未処理の拒否を出さず、失敗を覚えず、次は取り直せる', async () => {
+		const unhandled: unknown[] = [];
+		const onUnhandled = (e: unknown) => unhandled.push(e);
+		process.on('unhandledRejection', onUnhandled);
+		try {
+			routes.set('/gaiji/1-87/1-87-71.png', { body: png() });
+			// 控えの置き場所を、ファイルにしておく（ディレクトリとして読めない）。
+			await writeFile(join(root, 'images'), 'x');
+			const l = loader();
+			await expect(l.load(G)).rejects.toThrow();
+			await new Promise((r) => setTimeout(r, 20));
+			expect(unhandled).toEqual([]);
+			expect(l.retained).toBe(0);
+			// 置き場所を直せば、同じローダーで取り直せる。
+			await rm(join(root, 'images'));
+			expect((await l.load(G)).ok).toBe(true);
+		} finally {
+			process.off('unhandledRejection', onUnhandled);
+		}
 	});
 
 	it('使えない設定は、通信の前に断る', () => {
