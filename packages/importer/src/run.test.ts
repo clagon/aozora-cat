@@ -290,6 +290,30 @@ describe('runImport', () => {
 		expect(await readdir(root)).toEqual([]);
 	});
 
+	it('同時に取る数・間隔・時間切れ・再試行の設定に使えない値を渡すと、通信を始める前に断る', async () => {
+		serveXhtml(1);
+		const bad: Partial<RunOptions>[] = [
+			{ concurrency: Number.NaN },
+			{ concurrency: 0 },
+			{ concurrency: 1.5 },
+			{ concurrency: 65 },
+			{ minIntervalMs: Number.NaN },
+			{ minIntervalMs: -1 },
+			{ minIntervalMs: Infinity },
+			{ fetchOptions: { ...fast, timeoutMs: Number.NaN } },
+			{ fetchOptions: { ...fast, timeoutMs: 0 } },
+			{ fetchOptions: { ...fast, retries: -1 } },
+			{ fetchOptions: { ...fast, retries: 11 } },
+			{ fetchOptions: { ...fast, retryDelayMs: Number.NaN } }
+		];
+		for (const [i, options] of bad.entries())
+			await expect(run('r1', [work(1)], options), String(i)).rejects.toThrow(
+				RangeError
+			);
+		expect(hits).toEqual([]);
+		expect(await readdir(root)).toEqual([]);
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);
@@ -798,6 +822,18 @@ describe('失敗しても、最後に正常な実行を壊さない', () => {
 		await expect(commitRun(root, 'r2')).rejects.toThrow(CommitRefused);
 		expect(await readCurrent(root)).toBe('r1');
 		expect(await manifestText('r1')).toBe(before);
+	});
+
+	it('失敗の割合の上限に NaN や範囲外の値を渡すと、確定せず、current も変えない', async () => {
+		serveXhtml(1);
+		await run('r1', [work(1)]);
+		await commitRun(root, 'r1');
+		await run('r2', [work(2)]);
+		for (const maxFailureRatio of [Number.NaN, -0.1, 1.5])
+			await expect(commitRun(root, 'r2', { maxFailureRatio })).rejects.toThrow(
+				RangeError
+			);
+		expect(await readCurrent(root)).toBe('r1');
 	});
 
 	it('作品のファイルが無い・記録と合わない、manifest が壊れた実行は、確定を拒まれ、current は変わらない', async () => {

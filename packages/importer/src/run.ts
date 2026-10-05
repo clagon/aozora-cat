@@ -15,7 +15,12 @@ import {
 import { serializeWork } from '../../../src/lib/domain/work.ts';
 import { checkWork, selectBodies } from './catalog.ts';
 import { decodeBody, toSource } from './body.ts';
-import { FetchError, fetchResource, type FetchOptions } from './download.ts';
+import {
+	assertFetchOptions,
+	FetchError,
+	fetchResource,
+	type FetchOptions
+} from './download.ts';
 import { readOptional, sha256, writeAtomic } from './store.ts';
 import type { Diagnostic as ConversionDiagnostic } from '../../converter/src/types.ts';
 import type {
@@ -85,10 +90,12 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
 		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
-	// NaN や負の値は、大きさの上限を働かなくする。通信を始める前に、設定の誤りとして断る。
-	const limit = options.fetchOptions?.maxBytes;
-	if (limit !== undefined && !(limit >= 0))
-		throw new RangeError(`fetchOptions.maxBytes が使えません: ${limit}`);
+	// NaN や負の値は、上限や間隔を働かなくする。通信を始める前に、設定の誤りとして断る。
+	assertFetchOptions(options.fetchOptions ?? {});
+	if (!(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 64))
+		throw new RangeError(`concurrency が使えません: ${concurrency}`);
+	if (!(minIntervalMs >= 0 && Number.isFinite(minIntervalMs)))
+		throw new RangeError(`minIntervalMs が使えません: ${minIntervalMs}`);
 
 	// 作品IDはファイル名に、本文のURLは通信の宛先になる。呼び出し側が組んだ値でも、公式以外や
 	// パスの一部、別の作品のものを持ち込ませない。何かを読み書きする前に調べる。
@@ -202,7 +209,7 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	// 1つが失敗しても、ほかの作業者が終わる（書き込み中のものも含めて）のを待ってから、失敗を返す。
 	// 先に返すと、呼び出し側が後片付けや再実行を始めたあとも、裏で通信と書き込みが続いてしまう。
 	const settled = await Promise.allSettled(
-		Array.from({ length: Math.max(1, concurrency) }, worker)
+		Array.from({ length: concurrency }, worker)
 	);
 	const crashed = settled.find((r) => r.status === 'rejected');
 	if (crashed) throw crashed.reason;
@@ -623,6 +630,8 @@ export async function commitRun(
 	runId: string,
 	{ maxFailureRatio = 0.02 }: { maxFailureRatio?: number } = {}
 ): Promise<void> {
+	if (!(maxFailureRatio >= 0 && maxFailureRatio <= 1))
+		throw new RangeError(`maxFailureRatio が使えません: ${maxFailureRatio}`);
 	if (!RUN_ID.test(runId))
 		throw new CommitRefused(`runId が使えません: ${runId}`);
 	const text = await readOptional(runPath(root, runId, 'manifest.json'));

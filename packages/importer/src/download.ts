@@ -33,6 +33,35 @@ export type FetchOptions = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * 数値の設定を確かめる。NaN や負の値だと、大きさ・時間・回数の比較がすべて偽になり、
+ * 上限や待ちが働かなくなる（公式サイトへ続けざまに通信するなど）ので、通信の前に断る。
+ * maxBytes の Infinity は許す（呼び出し側で上限に丸める）。
+ */
+export function assertFetchOptions(
+	o: Partial<
+		Pick<FetchOptions, 'maxBytes' | 'timeoutMs' | 'retries' | 'retryDelayMs'>
+	>
+): void {
+	const bad = (name: string, v: unknown): never => {
+		throw new RangeError(`${name} が使えません: ${String(v)}`);
+	};
+	const { maxBytes, timeoutMs, retries, retryDelayMs } = o;
+	if (maxBytes !== undefined && !(maxBytes >= 0)) bad('maxBytes', maxBytes);
+	if (timeoutMs !== undefined && !(timeoutMs > 0 && Number.isFinite(timeoutMs)))
+		bad('timeoutMs', timeoutMs);
+	if (
+		retries !== undefined &&
+		!(Number.isInteger(retries) && retries >= 0 && retries <= 10)
+	)
+		bad('retries', retries);
+	if (
+		retryDelayMs !== undefined &&
+		!(retryDelayMs >= 0 && Number.isFinite(retryDelayMs))
+	)
+		bad('retryDelayMs', retryDelayMs);
+}
+
 /** 前回の応答の検証子。あれば条件付きで取得し、変わっていなければ本文を受け取らない。 */
 export type Validators = { etag?: string; lastModified?: string };
 
@@ -54,9 +83,7 @@ export async function fetchResource(
 		lastModified
 	}: FetchOptions & Validators
 ): Promise<Fetched> {
-	// NaN や負の値だと、大きさの比較がすべて偽になり、上限が働かなくなる。
-	if (!(maxBytes >= 0))
-		throw new RangeError(`maxBytes が使えません: ${maxBytes}`);
+	assertFetchOptions({ maxBytes, timeoutMs, retries, retryDelayMs });
 	let last: FetchError | undefined;
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		if (attempt > 0) await sleep(retryDelayMs * 2 ** (attempt - 1));

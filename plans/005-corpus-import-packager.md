@@ -140,7 +140,11 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   sees the failure. When a previous result is reused, `attempts` always reflects
   the current invocation.
 - The body size ceiling (64 MiB) can be lowered through `fetchOptions` but not
-  raised; a `NaN` or negative `maxBytes` is refused before any request.
+  raised. Every numeric setting is checked before any request: `maxBytes`,
+  `timeoutMs`, `retries`, `retryDelayMs`, `concurrency` (1 to 64),
+  `minIntervalMs`, and `commitRun`'s `maxFailureRatio` (0 to 1); `NaN` and
+  out-of-range values are refused, because a comparison with `NaN` is always
+  false and would silently disable a limit.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
   interval between request starts (default 100 ms), applied to every HTTP
   attempt including retries. An abort signal stops
