@@ -190,6 +190,91 @@ data, provenance manifest, failure list, removed-work tombstones, and counts.
 **Verify**: `pnpm corpus:validate <output>` exits 0 only when total assets are
 below 20,000, every file is at most 25 MiB, and every reference resolves.
 
+Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`):
+
+- Asset format (`Asset`, version 1): one gzip-compressed JSON file per work,
+  `works/<id>.json.gz`, holding the validated work, and every image the work
+  references (gaiji, illustrations, ruby-base images, captions) as base64 under
+  its URL. Images are inlined rather than shared files so that the file count
+  stays near the number of works (the free limit is 20,000 files); gaiji images
+  are tiny, so duplicating them costs little. gzip is used because browsers can
+  decompress it with `DecompressionStream`; Brotli is not available there.
+- `parseAsset` / `parseAssetPart` reject unknown keys, future formats, images the
+  work does not reference, bad MIME types, sizes, and base64, and image part
+  names that do not belong to the work. `missingImages` reports references that
+  are not satisfied by the asset or its parts.
+- Splitting happens only when a work's asset exceeds 25 MiB: the images move to
+  `works/<id>.images-<n>.json.gz` (each group packed to 90% of the limit by
+  uncompressed size, then checked after compression) and the main asset lists
+  them in `imageParts`. The text of a work is never split; a work that still
+  does not fit fails with `work-too-large`, a single image that does not fit
+  fails with `image-too-large`, and more than 1,000 parts fails with
+  `too-many-parts`.
+- Images are fetched by `ImageLoader`, one request per URL per process, through
+  the same politeness gate as bodies (`createGate`) and a limiter on in-flight
+  downloads (`concurrency`, default 4, shared across works), so a work with many
+  images cannot open many connections at once. Only
+  `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
+  are accepted, in canonical form (a URL that parses back to itself, with no `.`
+  or `..` segment, query or fragment, since the fetch would normalize it out of
+  the allowlist). The content is checked rather than trusted (not decoded to pixels): a PNG
+  must have every chunk's CRC right, a PLTE only where the color type allows one
+  (never for grayscale; at most 2^depth entries for indexed images), no unknown critical chunk (ancillary ones,
+  whose type starts with a lowercase letter, are skipped), a valid IHDR (color type, bit depth,
+  interlace), its PLTE where needed, consecutive IDAT chunks, IEND last with
+  nothing after it, and an IDAT that inflates to exactly the size its rows need
+  with valid filter bytes; a GIF must have its blocks follow each other to a
+  trailer that is the last byte, and every image's LZW stream must decode, by
+  the specification's code widths and dictionary growth, to exactly the pixels
+  of that image's own descriptor (within the size limits); a JPEG must have
+  well-formed quantization (all values at least 1) and Huffman tables (codes that do not overlap, symbol
+  values unique and in range: DC sizes 0 to 11, AC run/size pairs with size 1 to
+  10 plus EOB and ZRL, even for codes the scan never uses), one
+  baseline or extended sequential Huffman frame (8 bit) whose components and
+  sampling factors are valid, and scans that reference existing components and
+  tables whose entropy data decodes completely: every Huffman code is defined,
+  DC sizes and AC runs stay in range, the number of blocks matches the image
+  (interleaved or not, with the restart interval's RST0 to RST7 markers in
+  order), the padding is all ones and no bytes are left over, every frame component scanned exactly once, then an EOI that
+  is the last two bytes. Progressive, arithmetic-coded and lossless JPEGs are
+  not accepted and show up in the failure list. Sides are at most 10,000 px,
+  the area at most 16 million pixels, the file 8 MiB. Header-only or truncated
+  images are rejected as `invalid-image`. The validators are tested against
+  images from real encoders (ImageMagick, libjpeg, giflib: gray, palette,
+  interlaced, 1x1/2x1/1x2/2x2 subsampled and restart-interval variants, every
+  truncation of each rejected, and a progressive JPEG rejected) and the GIF specification's 1x1 example, besides the official PNGs
+  fetched from the site; the approved works contain no JPEG or GIF, so those
+  two are checked only against encoder output, and a legitimate one that fails
+  here would show up in the failure list rather than ship. A readable image is kept under `raw/<sha256>`
+  with its validators; later runs reuse it without a request, and
+  `revalidateImages` checks with `If-None-Match` / `If-Modified-Since`.
+- `ImageLoader` forgets a successful result as soon as it resolves (the bytes
+  are read back from `raw/<sha256>` when another work needs the image), so
+  packaging the whole corpus does not keep every image in memory; failures are
+  remembered so the same missing image is not requested again. A `revalidate`
+  check happens once per URL per process.
+- A work's images are held in memory only up to `maxWorkImageBytes` (default
+  32 MiB of raw bytes) while it is packed, counting the downloads in flight (each
+  up to 8 MiB) by limiting a work's own parallelism to budget / 8 MiB: loading
+  stops as soon as the running total exceeds it and the work fails with `images-too-large`, so a work with
+  many large images cannot exhaust memory (the pack workers multiply the
+  bound). Failures are reported in a deterministic order.
+- `packRun` packs the converted works of a verified run into an empty output
+  directory (locked while it writes). Its numeric settings are checked
+  before anything is written, like `runImport`'s: `concurrency`,
+  `minIntervalMs`, the fetch options, and `maxFileBytes` (an integer from 1 up to
+  the 25 MiB deployment limit, never above it). A work whose image cannot be fetched or is
+  invalid is returned as a failure (`image-<reason>` with the URL) and is not
+  shipped; the other works are still written.
+- Real check (the official site, 5 images at 800 ms intervals): gaiji and
+  illustration PNGs sniff correctly. The official XHTML also links
+  `gaiji/others/xxxx.png`, which returns 404, so a work using it fails
+  packaging with `image-fetch-status` and appears in the failure list instead
+  of shipping a broken image.
+- Still to do in Step 3: the release assembly (catalog/search shards, feature
+  and recommendation data, provenance manifest, failure list, tombstones,
+  counts) and `pnpm corpus:validate`.
+
 ### Step 4: Produce a reviewer-facing diff
 
 Compare current and candidate manifests. Report additions, changes, removals,

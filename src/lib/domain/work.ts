@@ -162,7 +162,7 @@ class Invalid extends Error {
 
 const MAX_DEPTH = 8;
 /** 画像の幅・高さ（px）の上限。これを超える宣言は、縦横比の異常として拒否する。 */
-const MAX_IMAGE_SIDE = 10000;
+export const MAX_IMAGE_SIDE = 10000;
 /** 字下げ・地付き・ぶら下げの字数の上限。 */
 const MAX_LAYOUT_CHARS = 200;
 const AOZORA_HOST = 'www.aozora.gr.jp';

@@ -135,7 +135,7 @@ async function once(
 			}
 		});
 		if (res.status === 304 && conditional) {
-			void res.body?.cancel();
+			res.body?.cancel().catch(() => {});
 			return { status: 'not-modified' };
 		}
 		if (!res.ok) throw new FetchError('status', `${url} が ${res.status}`);
@@ -150,7 +150,7 @@ async function once(
 			if (!part || part.done) break;
 			total += part.value.length;
 			if (total > maxBytes) {
-				void reader?.cancel();
+				reader?.cancel().catch(() => {});
 				throw new FetchError('too-large', `${url} が大きすぎます`);
 			}
 			chunks.push(part.value);
