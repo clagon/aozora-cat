@@ -26,7 +26,8 @@ import type {
 	WorkRecord
 } from './types.ts';
 
-const RUN_ID = /^[A-Za-z0-9._-]{1,64}$/;
+/** 英数字で始める。「.」「..」のようなパスの一部になる値は、runs/<runId>/ から出てしまうので使えない。 */
+const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export type RunOptions = {
 	/** 作業領域（.corpus/）。 */

@@ -282,7 +282,21 @@ describe('runImport', () => {
 		serveXhtml(1);
 		await run('r1', [work(1)]);
 		await expect(run('r1', [work(1)])).rejects.toThrow();
-		await expect(run('../x', [work(1)])).rejects.toThrow();
+		for (const bad of [
+			'../x',
+			'..',
+			'.',
+			'.hidden',
+			'a/b',
+			'',
+			'x'.repeat(65)
+		]) {
+			await expect(run(bad, [work(1)]), bad).rejects.toThrow();
+			await expect(commitRun(root, bad), bad).rejects.toThrow(CommitRefused);
+		}
+		// 作業領域の外へも、作業領域の直下へも、何も書かれていない。
+		expect((await readdir(root)).sort()).toEqual(['raw', 'runs']);
+		expect(await readdir(join(root, 'runs'))).toEqual(['r1']);
 	});
 });
 
