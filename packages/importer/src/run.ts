@@ -565,10 +565,10 @@ function parseStarted(
 		const v: unknown = JSON.parse(text);
 		if (!isObj(v)) return null;
 		const key = str(v.key);
-		const previous = v.previous === null ? null : str(v.previous);
-		return key !== null && (previous === null || RUN_ID.test(previous))
-			? { key, previous }
-			: null;
+		// previous は、明示した null（土台なし）か、正しい runId だけ。欠けた・型が違う値を、土台なしとして読まない。
+		const base = v.previous === null ? null : str(v.previous);
+		const valid = v.previous === null || (base !== null && RUN_ID.test(base));
+		return key !== null && valid ? { key, previous: base } : null;
 	} catch {
 		return null;
 	}

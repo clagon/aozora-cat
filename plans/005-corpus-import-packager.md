@@ -125,7 +125,8 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   version and every target's catalog fields, source URLs and encodings, kept in
   `run.json`) and to the `revalidate` setting; resuming with different inputs or a
   different setting is refused, and the run also keeps the `current` run it
-  started from as its reuse base, so a run committed in between cannot be
+  started from as its reuse base (a `run.json` whose base is missing or not an
+  explicit `null` or valid run ID is refused, not read as "no base"), so a run committed in between cannot be
   mixed in, so old and new outputs never mix in one manifest. Running the same
   `runId` again with the same inputs skips works that already have a record
   whose id matches and whose work file still matches the recorded hash and size

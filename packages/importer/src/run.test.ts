@@ -549,6 +549,37 @@ describe('再開', () => {
 		expect(await readCurrent(root)).toBe('r1');
 	});
 
+	it('止めた実行の run.json が壊れていて、土台の指定が欠けている・型が違うときは、土台なしとして読まず、再開を断る', async () => {
+		serveXhtml(1);
+		serveXhtml(2);
+		const works = [work(1), work(2)];
+		await run('r0', works);
+		await commitRun(root, 'r0');
+		const stop = new AbortController();
+		// 1件も進まないうちに止めた実行。
+		stop.abort();
+		await run('r1', works, { signal: stop.signal });
+		const file = join(root, 'runs', 'r1', 'run.json');
+		const saved = JSON.parse(await readFile(file, 'utf-8'));
+		expect(saved.previous).toBe('r0');
+
+		for (const broken of [
+			{ key: saved.key },
+			{ key: saved.key, previous: 7 },
+			{ key: saved.key, previous: '../x' },
+			{ key: saved.key, previous: undefined },
+			[saved.key]
+		]) {
+			await writeFile(file, JSON.stringify(broken));
+			await expect(run('r1', works), JSON.stringify(broken)).rejects.toThrow(
+				/別の入力/
+			);
+		}
+		// 土台なし（明示した null）で始めた実行は、そのまま再開できる。
+		await writeFile(file, JSON.stringify({ key: saved.key, previous: null }));
+		expect((await run('r1', works)).complete).toBe(true);
+	});
+
 	it('壊れた記録は、なかったことにして、取り直す', async () => {
 		serveXhtml(1);
 		serveXhtml(2);
