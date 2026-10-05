@@ -126,10 +126,11 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   `run.json`) and to the `revalidate` setting; resuming with different inputs or a
   different setting is refused, and the run also keeps the `current` run it
   started from as its reuse base, so a run committed in between cannot be
-  mixed in, so old and new
-  outputs never mix in one manifest. Running the same `runId` again with the
-  same inputs skips works that already have a record, except fetch-level failures (network, timeout, status), which are
-  tried again. Conversion failures are deterministic and are not retried. A
+  mixed in, so old and new outputs never mix in one manifest. Running the same
+  `runId` again with the same inputs skips works that already have a record
+  whose id matches and whose work file still matches the recorded hash and size
+  (otherwise the work is processed again), except fetch-level failures
+  (network, timeout, status), which are tried again. Conversion failures are deterministic and are not retried. A
   corrupt record is treated as missing. A finished run (with a manifest) cannot
   be run again.
 - An unexpected failure in one worker (for example a filesystem error) stops the
