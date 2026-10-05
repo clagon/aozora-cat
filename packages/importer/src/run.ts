@@ -26,6 +26,9 @@ import type {
 	WorkRecord
 } from './types.ts';
 
+/** 取得する本文の大きさの上限。公式の本文は数MBまで。呼び出し側は下げられるが、上げられない。 */
+const MAX_BODY_BYTES = 64 * 2 ** 20;
+
 /** 英数字で始める。「.」「..」のようなパスの一部になる値は、runs/<runId>/ から出てしまうので使えない。 */
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -280,8 +283,12 @@ async function importWork(
 		let got;
 		try {
 			got = await fetchResource(src.url, {
-				maxBytes: 64 * 2 ** 20,
 				...ctx.fetchOptions,
+				// 上限は下げられるが、上げられない（未指定や大きすぎる値でも、本文を無制限に受け取らない）。
+				maxBytes: Math.min(
+					MAX_BODY_BYTES,
+					ctx.fetchOptions?.maxBytes ?? MAX_BODY_BYTES
+				),
 				// 再試行も含めて、通信を始めるたびに間隔を守り、数える。
 				beforeAttempt: async () => {
 					await ctx.waitTurn();

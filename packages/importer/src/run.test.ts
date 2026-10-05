@@ -254,6 +254,31 @@ describe('runImport', () => {
 		expect(Date.now() - t0).toBeGreaterThanOrEqual(75);
 	});
 
+	it('本文の大きさの上限は、呼び出し側が下げられるが、上げられない', async () => {
+		serveXhtml(1);
+		// 上限を下げれば、その大きさを超える本文は受け取らない。
+		await run('r1', [work(1)], {
+			fetchOptions: { ...fast, maxBytes: 10, retries: 0 }
+		});
+		expect((await manifest('r1')).records[0]).toMatchObject({
+			status: 'failed',
+			attempts: [{ code: 'fetch-too-large' }, { code: 'fetch-status' }]
+		});
+		// 上限を外そうとしても、70MiB と申告される本文は読まない。
+		const huge: typeof fetch = async () =>
+			new Response(null, {
+				status: 200,
+				headers: { 'content-length': String(70 * 2 ** 20) }
+			});
+		await run('r2', [work(1)], {
+			fetchOptions: { ...fast, fetch: huge, maxBytes: Infinity, retries: 0 }
+		});
+		expect((await manifest('r2')).records[0]).toMatchObject({
+			status: 'failed',
+			attempts: [{ code: 'fetch-too-large' }, { code: 'fetch-too-large' }]
+		});
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);

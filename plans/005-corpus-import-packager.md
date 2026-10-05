@@ -139,6 +139,8 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   before it rejects, so nothing keeps requesting or writing after the caller
   sees the failure. When a previous result is reused, `attempts` always reflects
   the current invocation.
+- The body size ceiling (64 MiB) can be lowered through `fetchOptions` but not
+  raised.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
   interval between request starts (default 100 ms), applied to every HTTP
   attempt including retries. An abort signal stops
