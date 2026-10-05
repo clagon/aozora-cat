@@ -132,6 +132,11 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   tried again. Conversion failures are deterministic and are not retried. A
   corrupt record is treated as missing. A finished run (with a manifest) cannot
   be run again.
+- An unexpected failure in one worker (for example a filesystem error) stops the
+  others from taking new works, and `runImport` waits for every worker to settle
+  before it rejects, so nothing keeps requesting or writing after the caller
+  sees the failure. When a previous result is reused, `attempts` always reflects
+  the current invocation.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
   interval between request starts (default 100 ms), applied to every HTTP
   attempt including retries. An abort signal stops

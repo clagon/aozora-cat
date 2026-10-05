@@ -143,6 +143,8 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	};
 
 	let next = 0;
+	/** 作業者が1つでも予期しない失敗をしたら、残りは新しい作品を取らない。 */
+	let broken = false;
 	let gate = 0;
 	const waitTurn = async () => {
 		const at = Math.max(Date.now(), gate);
@@ -152,9 +154,9 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 
 	// 穴の空いた配列は every が飛ばすので、未完了を数え間違える。undefined で埋めておく。
 	const records: (WorkRecord | undefined)[] = targets.map(() => undefined);
-	const worker = async () => {
+	const loop = async () => {
 		for (;;) {
-			if (options.signal?.aborted) return;
+			if (broken || options.signal?.aborted) return;
 			const k = next++;
 			if (k >= targets.length) return;
 			const t = targets[k];
@@ -182,7 +184,18 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 			});
 		}
 	};
-	await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
+	const worker = () =>
+		loop().catch((e: unknown) => {
+			broken = true;
+			throw e;
+		});
+	// 1つが失敗しても、ほかの作業者が終わる（書き込み中のものも含めて）のを待ってから、失敗を返す。
+	// 先に返すと、呼び出し側が後片付けや再実行を始めたあとも、裏で通信と書き込みが続いてしまう。
+	const settled = await Promise.allSettled(
+		Array.from({ length: Math.max(1, concurrency) }, worker)
+	);
+	const crashed = settled.find((r) => r.status === 'rejected');
+	if (crashed) throw crashed.reason;
 
 	const complete = records.every((r) => r !== undefined);
 	const sorted = records
@@ -255,7 +268,8 @@ async function importWork(
 				prev.work
 			);
 			stats.catalogUnchanged++;
-			return finish(prev.record);
+			// 変換の結果は引き継ぐが、この実行で先の経路が失敗した理由は、今のものを残す。
+			return finish({ ...prev.record, attempts });
 		}
 
 		const cached = prev

@@ -1,6 +1,13 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	writeFile
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -331,6 +338,45 @@ describe('runImport', () => {
 			await expect(run('r1', [one]), String(i)).rejects.toThrow();
 		expect(hits).toEqual([]);
 		expect(await readdir(root)).toEqual([]);
+	});
+
+	it('作業者が予期しない失敗をしたら、ほかの作業者を止めて終わるのを待ってから、失敗を返す', async () => {
+		const works = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => work(n));
+		for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) serveXhtml(n);
+		delay = 30;
+		// 作品1の記録の置き場所を、ファイルを置けないものにして、読み書きを失敗させる。
+		await mkdir(join(root, 'runs', 'r1', 'records', '000001.json'), {
+			recursive: true
+		});
+		await expect(run('r1', works, { concurrency: 2 })).rejects.toThrow();
+		const settled = hits.length;
+		await new Promise((r) => setTimeout(r, 200));
+		// 返ったあとに、裏で取得が続いていない。残りの作品は、取りに行っていない。
+		expect(hits.length).toBe(settled);
+		expect(settled).toBeLessThanOrEqual(2);
+	});
+
+	it('先の経路が今回は別の理由で失敗しても、引き継いだ作品には、今回の失敗の理由を残す', async () => {
+		serveXhtml(1, '<marquee>流れる</marquee>');
+		serveText(1);
+		await run('r1', [work(1)]);
+		await commitRun(root, 'r1');
+		const [before] = (await manifest('r1')).records;
+		expect(before).toMatchObject({
+			attempts: [{ code: expect.stringMatching(/^convert-/) }]
+		});
+
+		routes.delete(htmlPath(1));
+		hits = [];
+		const r = await run('r2', [work(1)]);
+		expect(r.stats.catalogUnchanged).toBe(1);
+		expect(hits).toEqual([htmlPath(1)]);
+		const [after] = (await manifest('r2')).records;
+		expect(after).toMatchObject({
+			status: 'converted',
+			attempts: [{ path: 'xhtml', code: 'fetch-status' }]
+		});
+		expect(conv(after).workSha256).toBe(conv(before).workSha256);
 	});
 
 	it('同じ実行を2回終えようとしたり、使えない runId は、拒む', async () => {
