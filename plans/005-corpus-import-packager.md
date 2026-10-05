@@ -63,7 +63,7 @@ Decisions made in this step (`packages/importer`):
 - A work whose value cannot be trusted is rejected with a reason instead of
   being guessed: an unknown copyright flag, an unknown role, a malformed ID or
   a date that is not on the calendar (such as 2025-02-31), a missing title or orthography, a card URL that does not match the
-  work, or rows that disagree. Rejected works are never shipped.
+  work or whose person directory is not one of the work's people, or rows that disagree. Rejected works are never shipped.
 - Only the work copyright flag decides distribution. Works flagged `あり` stay
   in the parsed catalog (the Step 4 diff needs them to report rights changes)
   but `selectBodies` never lists them, so no body request is made for them, and

@@ -196,6 +196,13 @@ describe('parseCatalog', () => {
 				図書カードURL: 'https://example.com/cards/000879/card1.html'
 			})
 		);
+		// 図書カードの場所が、作品の人物のものではない（本文の場所の根拠にならない）。
+		rejectedAs(
+			'invalid-field',
+			base('000001', {
+				図書カードURL: 'https://www.aozora.gr.jp/cards/000999/card1.html'
+			})
+		);
 	});
 
 	it('作品の著作権フラグだけで頒布を決め、人物のフラグは使わない', () => {

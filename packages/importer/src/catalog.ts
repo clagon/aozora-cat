@@ -208,6 +208,13 @@ function toWork(id: string, g: Row[]): Made {
 		people.push({ id: personId, role, name, ...(reading && { reading }) });
 	}
 
+	// 図書カードのある場所は、この作品の人物のものでなければならない。本文の場所の根拠にもなる。
+	if (!people.some((p) => p.id === card[1]))
+		return reject(
+			'invalid-field',
+			'図書カードURLの人物が、作品の人物にいません'
+		);
+
 	const notes: Diagnostic[] = [];
 	const bodies = (['xhtml', 'text'] as const).map((path) => {
 		const p = path === 'xhtml' ? 'XHTML/HTMLファイル' : 'テキストファイル';
