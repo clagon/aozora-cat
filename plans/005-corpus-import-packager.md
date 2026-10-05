@@ -47,9 +47,12 @@ missing XHTML, and copyright flags; active works cause zero body requests.
 
 Decisions made in this step (`packages/importer`):
 
-- The CSV is read as RFC 4180 and grouped by work ID. A work's own columns must
+- The CSV is read as RFC 4180; a stray quote (text after a closing quote, or a
+  quote inside an unquoted field) stops the import instead of being repaired.
+  Rows are grouped by work ID. A work's own columns must
   agree on every row; people are deduplicated by person ID and role and all
-  roles are kept. Names and readings join surname and given name without a
+  roles are kept; rows for the same person and role must agree on name and
+  reading or the work is rejected. Names and readings join surname and given name without a
   separator, as in the converter's `WorkSource`.
 - The pinned schema is the set of columns the importer reads
   (`REQUIRED_COLUMNS`). A missing column, a repeated column (the authoritative value

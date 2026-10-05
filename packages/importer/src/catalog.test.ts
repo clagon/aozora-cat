@@ -121,6 +121,26 @@ describe('parseCatalog', () => {
 		]);
 	});
 
+	it('同じ人物・役割の行で氏名や読みが食い違えば、行の順によらず、その作品を外す', () => {
+		const a = base('000001');
+		const b = base('000001', { 名読み: '' });
+		for (const rows of [
+			[a, b],
+			[b, a]
+		]) {
+			const c = parse(...rows);
+			expect(c.works).toEqual([]);
+			expect(c.rejected).toEqual([
+				{
+					id: '000001',
+					code: 'inconsistent-rows',
+					message: expect.stringContaining('000879')
+				}
+			]);
+		}
+		expect(parse(a, base('000001', { 名: '龍之介' })).rejected).toHaveLength(1);
+	});
+
 	it('同じ人物が別の役割でも、別々に残す', () => {
 		const w = one(base('000001'), base('000001', { 役割フラグ: '編者' }));
 		expect(w.people.map((p) => p.role)).toEqual(['author', 'editor']);

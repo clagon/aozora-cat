@@ -194,8 +194,17 @@ function toWork(id: string, g: Row[]): Made {
 		const name = `${r.get('姓')}${r.get('名')}`;
 		if (!/^\d{6}$/.test(personId) || name === '')
 			return reject('invalid-field', '人物が読めません');
-		if (people.some((p) => p.id === personId && p.role === role)) continue;
 		const reading = `${r.get('姓読み')}${r.get('名読み')}`;
+		const same = people.find((p) => p.id === personId && p.role === role);
+		if (same) {
+			// 同じ人物・役割の行は1つにする。氏名や読みが食い違えば、先の行を採らず外す。
+			if (same.name !== name || (same.reading ?? '') !== reading)
+				return reject(
+					'inconsistent-rows',
+					`人物 ${personId} の氏名や読みが行ごとに食い違っています`
+				);
+			continue;
+		}
 		people.push({ id: personId, role, name, ...(reading && { reading }) });
 	}
 

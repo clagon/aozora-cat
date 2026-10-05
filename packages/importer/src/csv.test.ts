@@ -17,6 +17,15 @@ describe('parseCsv', () => {
 		]);
 	});
 
+	it('閉じた引用符の後ろの文字と、フィールドの途中の引用符は、読み替えず失敗にする', () => {
+		expect(() => parseCsv('"な"し,x')).toThrow();
+		expect(() => parseCsv('a,"な" ,x')).toThrow();
+		expect(() => parseCsv('ab"c",x')).toThrow();
+		expect(() => parseCsv('a"')).toThrow();
+		// 引用符で閉じた直後が、区切り・行末・入力の終わりなら通る。
+		expect(parseCsv('"a","b"\n"c"')).toEqual([['a', 'b'], ['c']]);
+	});
+
 	it('空の入力は行なし。閉じていない引用符は失敗にする', () => {
 		expect(parseCsv('')).toEqual([]);
 		expect(() => parseCsv('a,"b')).toThrow();
