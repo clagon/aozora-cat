@@ -290,6 +290,48 @@ describe('runImport', () => {
 		expect(await readdir(root)).toEqual([]);
 	});
 
+	it('公式以外・別の人物・別の作品を指す本文や図書カードは、通信する前に拒む', async () => {
+		const w = work(1);
+		const bad: CatalogWork[] = [
+			{
+				...w,
+				xhtml: { ...w.xhtml!, url: `${origin}/cards/000879/files/1.html` }
+			},
+			{
+				...w,
+				xhtml: {
+					...w.xhtml!,
+					url: 'https://example.com/cards/000879/files/1.html'
+				}
+			},
+			{
+				...w,
+				xhtml: { ...w.xhtml!, url: `${OFFICIAL}/cards/000999/files/1.html` }
+			},
+			{
+				...w,
+				xhtml: { ...w.xhtml!, url: `${OFFICIAL}/cards/000879/files/2.html` }
+			},
+			{
+				...w,
+				text: { ...w.text!, url: `${OFFICIAL}/cards/000879/files/1.html` }
+			},
+			{ ...w, xhtml: { ...w.xhtml!, encoding: 'EUC-JP' as 'UTF-8' } },
+			{ ...w, xhtml: { ...w.xhtml!, updated: '2025-02-31' } },
+			{ ...w, cardUrl: 'https://example.com/cards/000879/card1.html' },
+			{ ...w, cardUrl: `${OFFICIAL}/cards/000879/card2.html` },
+			{
+				...w,
+				workCopyright: 'あり',
+				xhtml: { ...w.xhtml!, url: `${origin}/x.html` }
+			}
+		];
+		for (const [i, one] of bad.entries())
+			await expect(run('r1', [one]), String(i)).rejects.toThrow();
+		expect(hits).toEqual([]);
+		expect(await readdir(root)).toEqual([]);
+	});
+
 	it('同じ実行を2回終えようとしたり、使えない runId は、拒む', async () => {
 		serveXhtml(1);
 		await run('r1', [work(1)]);
@@ -409,6 +451,32 @@ describe('再開', () => {
 			/別の入力/
 		);
 		expect((await run('r1', works)).complete).toBe(true);
+	});
+
+	it('再開の間に別の実行が確定しても、始めたときの current を土台にし続ける', async () => {
+		serveXhtml(1);
+		serveXhtml(2);
+		const works = [work(1), work(2)];
+		await run('r0', works);
+		await commitRun(root, 'r0');
+
+		// r1 は、r0 を土台にして始めたが、1件も進まないまま止まった。
+		const stop = new AbortController();
+		stop.abort();
+		await run('r1', works, { signal: stop.signal });
+
+		// その間に、別の入力で r9 が確定した。
+		await run('r9', [works[0], work(2, { title: '別の題名' })]);
+		await commitRun(root, 'r9');
+		hits = [];
+
+		const r = await run('r1', works);
+		expect(r.stats).toMatchObject({ catalogUnchanged: 2, requests: 0 });
+		expect(hits).toEqual([]);
+		const started = JSON.parse(
+			await readFile(join(root, 'runs', 'r1', 'run.json'), 'utf-8')
+		);
+		expect(started.previous).toBe('r0');
 	});
 
 	it('壊れた記録は、なかったことにして、取り直す', async () => {

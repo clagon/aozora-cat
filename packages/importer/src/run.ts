@@ -13,7 +13,7 @@ import {
 	CONVERTER_VERSION
 } from '../../converter/src/index.ts';
 import { serializeWork } from '../../../src/lib/domain/work.ts';
-import { selectBodies } from './catalog.ts';
+import { checkWork, selectBodies } from './catalog.ts';
 import { decodeBody, toSource } from './body.ts';
 import { FetchError, fetchResource, type FetchOptions } from './download.ts';
 import { readOptional, sha256, writeAtomic } from './store.ts';
@@ -82,17 +82,18 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
 		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
-	// 作品IDはファイル名になる。呼び出し側が組んだ値でも、パスの一部や重複を持ち込ませない。
-	for (const w of options.works)
-		if (!/^\d{6}$/.test(w.id))
-			throw new Error(`作品IDが6桁ではありません: ${w.id}`);
+	// 作品IDはファイル名に、本文のURLは通信の宛先になる。呼び出し側が組んだ値でも、公式以外や
+	// パスの一部、別の作品のものを持ち込ませない。何かを読み書きする前に調べる。
+	for (const w of options.works) {
+		const bad = checkWork(w);
+		if (bad !== null) throw new Error(bad);
+	}
 	if (new Set(options.works.map((w) => w.id)).size !== options.works.length)
 		throw new Error('作品IDが重複しています');
 
 	const byId = new Map(options.works.map((w) => [w.id, w]));
 	// 著作権が「あり」の作品は、ここへ来ても取りに行かない。
 	const targets = selectBodies(options.works).fetch;
-	const previous = await readCurrent(root);
 
 	// 実行は、始めたときの入力（目録の項目・本文の参照・変換器）と取り直しの指定に結び付ける。再開のとき、入力が
 	// 変わっていれば、古い記録を混ぜずに止める（記録の中身が、今の入力に合うかを個別に調べない）。
@@ -113,16 +114,24 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 				.sort((a, b) => (a[0] < b[0] ? -1 : 1))
 		})
 	);
+	// 前回の実行（引き継ぎの土台）も、始めたときの current に固定する。再開の間に別の実行が
+	// 確定しても、新旧の土台を混ぜない。
 	const started = await readOptional(runPath(root, runId, 'run.json'));
-	if (started === null)
+	let previous: string | null;
+	if (started === null) {
+		previous = await readCurrent(root);
 		await writeAtomic(
 			runPath(root, runId, 'run.json'),
-			`${JSON.stringify({ key })}\n`
+			`${JSON.stringify({ key, previous })}\n`
 		);
-	else if (started.toString('utf-8') !== `${JSON.stringify({ key })}\n`)
-		throw new Error(
-			`実行 ${runId} は、別の入力（目録・変換器）で始めた実行です。新しい runId で始めてください`
-		);
+	} else {
+		const saved = parseStarted(started.toString('utf-8'));
+		if (saved?.key !== key)
+			throw new Error(
+				`実行 ${runId} は、別の入力（目録・変換器・取り直しの指定）で始めた実行です。新しい runId で始めてください`
+			);
+		previous = saved.previous;
+	}
 
 	const stats: RunStats = {
 		fetched: 0,
@@ -505,6 +514,23 @@ export async function readCurrent(root: string): Promise<string | null> {
 		const v: unknown = JSON.parse(text.toString('utf-8'));
 		const runId = isObj(v) ? str(v.runId) : null;
 		return runId !== null && RUN_ID.test(runId) ? runId : null;
+	} catch {
+		return null;
+	}
+}
+
+/** run.json を読む。読めなければ null（別の入力で始めた実行と同じく、再開を断る）。 */
+function parseStarted(
+	text: string
+): { key: string; previous: string | null } | null {
+	try {
+		const v: unknown = JSON.parse(text);
+		if (!isObj(v)) return null;
+		const key = str(v.key);
+		const previous = v.previous === null ? null : str(v.previous);
+		return key !== null && (previous === null || RUN_ID.test(previous))
+			? { key, previous }
+			: null;
 	} catch {
 		return null;
 	}

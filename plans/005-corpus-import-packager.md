@@ -124,7 +124,9 @@ Decisions made in this step (`packages/importer`, `run.ts`):
 - Resume: a run is bound to the inputs it started with (a hash of the converter
   version and every target's catalog fields, source URLs and encodings, kept in
   `run.json`) and to the `revalidate` setting; resuming with different inputs or a
-  different setting is refused, so old and new
+  different setting is refused, and the run also keeps the `current` run it
+  started from as its reuse base, so a run committed in between cannot be
+  mixed in, so old and new
   outputs never mix in one manifest. Running the same `runId` again with the
   same inputs skips works that already have a record, except fetch-level failures (network, timeout, status), which are
   tried again. Conversion failures are deterministic and are not retried. A
@@ -138,9 +140,11 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   ratio exceeds `maxFailureRatio` (default 2%), and leaves `current.json`
   untouched. Because a run never writes outside its own directory and `raw/`,
   a failed run cannot alter the last known-good release.
-- Work IDs must be six digits and unique before anything is read or written,
-  so a hand-built `CatalogWork[]` cannot turn an ID into a path outside the run
-  directory. Run IDs must start with an alphanumeric character for the same
+- `checkWork` validates every work before anything is read, written, or
+  requested: a six-digit unique ID, a card URL for that work, and body URLs on
+  the official host, in the same person directory, naming this work (the same
+  rules as `parseCatalog`), so a hand-built `CatalogWork[]` cannot turn an ID
+  into a path outside the run directory or send a request to another host. Run IDs must start with an alphanumeric character for the same
   reason.
 - Copyright-active works are filtered again inside `runImport` (through
   `selectBodies`), so a caller cannot make it request their bodies.
