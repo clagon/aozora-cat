@@ -261,21 +261,142 @@ function gifInfo(b: Uint8Array): Sniffed | null {
 	return null;
 }
 
+type Huff = { counts: number[]; symbols: number[] };
+
+/** 符号を1つ読む（JPEG の規格書 附属書 F の方法）。定義にない符号なら -1。 */
+function huffDecode(t: Huff, bits: () => number): number {
+	let code = 0;
+	let first = 0;
+	let index = 0;
+	for (let len = 1; len <= 16; len++) {
+		const bit = bits();
+		if (bit < 0) return -1;
+		code |= bit;
+		const count = t.counts[len];
+		if (code - count < first) return t.symbols[index + (code - first)];
+		index += count;
+		first += count;
+		first <<= 1;
+		code <<= 1;
+	}
+	return -1;
+}
+
 /**
- * JPEG: セグメントを順にたどり、表（量子化・ハフマン）、フレーム（大きさと成分）、スキャン
- * （成分の参照）の中身が規格の形になっていること、スキャンの符号化データが空でないこと、EOI が最後に
- * あることを確かめる。扱うのは、ハフマン符号の基本・拡張・プログレッシブ（SOF0/1/2）だけ。
+ * 基本・拡張（8ビット）のハフマン符号のスキャンを、すべての MCU について復号して確かめる。
+ * 画素までは作らず、符号が表にあること、直流の大きさと交流の連なりが規格の範囲に収まること、
+ * MCU の数が画像の大きさと合うこと、リスタート間隔のマーカーが正しく並ぶこと、符号化データを
+ * 過不足なく使い切ることを確かめる。
+ */
+function scanOk(
+	data: Uint8Array,
+	frame: {
+		w: number;
+		h: number;
+		comps: Map<number, { h: number; v: number; tq: number }>;
+	},
+	scan: { id: number; dc: Huff; ac: Huff }[],
+	restart: number
+): boolean {
+	let hmax = 1;
+	let vmax = 1;
+	for (const c of frame.comps.values()) {
+		hmax = Math.max(hmax, c.h);
+		vmax = Math.max(vmax, c.v);
+	}
+	// 1つの MCU に含まれるデータ単位（8×8）の並びと、MCU の数。
+	const unit: number[] = []; // scan の番号
+	let mcus: number;
+	if (scan.length === 1) {
+		const c = frame.comps.get(scan[0].id) as { h: number; v: number };
+		unit.push(0);
+		mcus =
+			Math.ceil(Math.ceil((frame.w * c.h) / hmax) / 8) *
+			Math.ceil(Math.ceil((frame.h * c.v) / vmax) / 8);
+	} else {
+		scan.forEach((s, k) => {
+			const c = frame.comps.get(s.id) as { h: number; v: number };
+			for (let n = 0; n < c.h * c.v; n++) unit.push(k);
+		});
+		mcus = Math.ceil(frame.w / (8 * hmax)) * Math.ceil(frame.h / (8 * vmax));
+	}
+
+	let pos = 0;
+	let bitsLeft = 0;
+	let cur = 0;
+	/** 次の1ビット。マーカー（FF のあとが 00 以外）に当たったら -1。 */
+	const bit = (): number => {
+		if (bitsLeft === 0) {
+			if (pos >= data.length) return -1;
+			cur = data[pos];
+			if (cur === 0xff) {
+				if (data[pos + 1] !== 0x00) return -1;
+				pos += 2;
+			} else pos += 1;
+			bitsLeft = 8;
+		}
+		bitsLeft--;
+		return (cur >> bitsLeft) & 1;
+	};
+	const read = (n: number): boolean => {
+		for (let i = 0; i < n; i++) if (bit() < 0) return false;
+		return true;
+	};
+
+	let nextRst = 0;
+	for (let m = 0; m < mcus; m++) {
+		if (restart > 0 && m > 0 && m % restart === 0) {
+			// リスタート: 残りのビットを捨て、RSTn を読む。n は 0 から 7 を繰り返す。
+			bitsLeft = 0;
+			if (data[pos] !== 0xff || data[pos + 1] !== 0xd0 + nextRst) return false;
+			pos += 2;
+			nextRst = (nextRst + 1) & 7;
+		}
+		for (const k of unit) {
+			const { dc, ac } = scan[k];
+			const s = huffDecode(dc, bit);
+			if (s < 0 || s > 11 || !read(s)) return false;
+			for (let i = 1; i < 64;) {
+				const rs = huffDecode(ac, bit);
+				if (rs < 0) return false;
+				const r = rs >> 4;
+				const size = rs & 15;
+				if (size === 0) {
+					if (r === 15) {
+						i += 16;
+						if (i > 64) return false;
+						continue;
+					}
+					if (r !== 0) return false;
+					break;
+				}
+				i += r;
+				if (i > 63 || size > 10 || !read(size)) return false;
+				i++;
+			}
+		}
+	}
+	// 最後のバイトの残りは、1 で埋めてあればよい。そのあとに、使われないバイトが残っていてはいけない。
+	if (bitsLeft > 0 && (cur & ((1 << bitsLeft) - 1)) !== (1 << bitsLeft) - 1)
+		return false;
+	return pos === data.length;
+}
+
+/**
+ * JPEG: セグメントを順にたどり、表（量子化・ハフマン）、フレーム（大きさと成分）、スキャンの中身を
+ * 確かめ、スキャンの符号化データを MCU まで復号し、EOI が最後にあることを確かめる。扱うのは、
+ * ハフマン符号の基本・拡張（SOF0/1、8ビット）だけ。プログレッシブ・算術符号・ロスレスは、受け付けない。
  */
 function jpegInfo(b: Uint8Array): Sniffed | null {
 	if (!startsWith(b, [0xff, 0xd8, 0xff]) || b.length < 4) return null;
 	const quant = new Set<number>();
-	const huffman = new Set<number>(); // クラス*4 + 番号
+	const tables = new Map<number, Huff>(); // クラス*4 + 番号
 	let frame: {
 		w: number;
 		h: number;
-		progressive: boolean;
-		comps: Map<number, number>; // 成分の番号 → 量子化表の番号
+		comps: Map<number, { h: number; v: number; tq: number }>;
 	} | null = null;
+	let restart = 0;
 	let scans = 0;
 	let at = 2;
 	for (;;) {
@@ -320,29 +441,32 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 				const tc = body[p] >> 4;
 				const th = body[p] & 15;
 				if (tc > 1 || th > 3) return null;
-				let n = 0;
-				for (let k = 1; k <= 16; k++) n += body[p + k];
-				if (n === 0 || n > 256) return null;
+				const counts = [0, ...Array.from(body.subarray(p + 1, p + 17))];
+				const n = counts.reduce((a, c) => a + c, 0);
+				if (n === 0 || n > 256 || p + 17 + n > body.length) return null;
+				// 符号の数が、長さごとの空きを超えていない（符号が重ならない）こと。
+				let room = 1;
+				for (let k = 1; k <= 16; k++) {
+					room = room * 2 - counts[k];
+					if (room < 0) return null;
+				}
+				tables.set(tc * 4 + th, {
+					counts,
+					symbols: Array.from(body.subarray(p + 17, p + 17 + n))
+				});
 				p += 17 + n;
-				huffman.add(tc * 4 + th);
 			}
 			if (p !== body.length) return null;
-		} else if (
-			m >= 0xc0 &&
-			m <= 0xcf &&
-			m !== 0xc4 &&
-			m !== 0xc8 &&
-			m !== 0xcc
-		) {
-			// フレーム。基本・拡張・プログレッシブのハフマン符号だけ。
-			if (frame !== null || m > 0xc2) return null;
+		} else if (m === 0xc0 || m === 0xc1) {
+			// フレーム（基本・拡張のハフマン符号、8ビット）。
+			if (frame !== null) return null;
 			const nf = body[5];
 			if (body.length !== 6 + 3 * nf || body[0] !== 8 || nf < 1 || nf > 4)
 				return null;
 			const w = u16(body, 3);
 			const h = u16(body, 1);
 			if (w < 1 || h < 1) return null;
-			const comps = new Map<number, number>();
+			const comps = new Map<number, { h: number; v: number; tq: number }>();
 			for (let k = 0; k < nf; k++) {
 				const id = body[6 + 3 * k];
 				const hv = body[7 + 3 * k];
@@ -356,9 +480,20 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 					tq > 3
 				)
 					return null;
-				comps.set(id, tq);
+				comps.set(id, { h: hv >> 4, v: hv & 15, tq });
 			}
-			frame = { w, h, progressive: m === 0xc2, comps };
+			frame = { w, h, comps };
+		} else if (
+			m >= 0xc2 &&
+			m <= 0xcf &&
+			m !== 0xc4 &&
+			m !== 0xc8 &&
+			m !== 0xcc
+		) {
+			return null; // プログレッシブ・算術符号・ロスレス
+		} else if (m === 0xdd) {
+			if (body.length !== 2) return null;
+			restart = u16(body, 0);
 		} else if (m === 0xda) {
 			if (frame === null) return null;
 			const ns = body[0];
@@ -366,37 +501,49 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 				ns < 1 ||
 				ns > 4 ||
 				ns > frame.comps.size ||
-				body.length !== 1 + 2 * ns + 3
+				body.length !== 1 + 2 * ns + 3 ||
+				body[1 + 2 * ns] !== 0 ||
+				body[2 + 2 * ns] !== 63 ||
+				body[3 + 2 * ns] !== 0
 			)
 				return null;
-			const seen = new Set<number>();
+			const scan: { id: number; dc: Huff; ac: Huff }[] = [];
 			for (let k = 0; k < ns; k++) {
 				const id = body[1 + 2 * k];
 				const td = body[2 + 2 * k] >> 4;
 				const ta = body[2 + 2 * k] & 15;
-				const tq = frame.comps.get(id);
-				if (tq === undefined || seen.has(id) || td > 3 || ta > 3) return null;
-				seen.add(id);
-				// 基本・拡張では、スキャンが使う量子化表とハフマン表が、先に定義されていること。
+				const c = frame.comps.get(id);
+				const dc = tables.get(td);
+				const ac = tables.get(4 + ta);
 				if (
-					!frame.progressive &&
-					(!quant.has(tq) || !huffman.has(td) || !huffman.has(4 + ta))
+					!c ||
+					scan.some((s) => s.id === id) ||
+					!quant.has(c.tq) ||
+					!dc ||
+					!ac
 				)
 					return null;
+				scan.push({ id, dc, ac });
 			}
-			// 符号化データ: 次の（RST ではない）マーカーまで。スタッフィング（FF00）と RST は中身。
+			if (ns > 1) {
+				// 交互のスキャンでは、1つの MCU に入るデータ単位は、合計で 10 以下。
+				let units = 0;
+				for (const s of scan) {
+					const c = frame.comps.get(s.id) as { h: number; v: number };
+					units += c.h * c.v;
+				}
+				if (units > 10) return null;
+			}
+			// 符号化データ: 次の（RST ではない）マーカーまで。FF00 はスタッフィング、RST は中身。
 			let p = end;
-			let data = 0;
 			while (p < b.length) {
 				if (b[p] !== 0xff) {
 					p++;
-					data++;
 					continue;
 				}
 				const n = b[p + 1];
 				if (n === 0x00 || (n >= 0xd0 && n <= 0xd7)) {
 					p += 2;
-					data += n === 0x00 ? 1 : 0;
 					continue;
 				}
 				if (n === 0xff) {
@@ -405,12 +552,11 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 				}
 				break;
 			}
-			if (data === 0) return null;
+			if (p === end || !scanOk(b.subarray(end, p), frame, scan, restart))
+				return null;
 			scans++;
 			at = p;
 			continue;
-		} else if (m === 0xdd) {
-			if (body.length !== 2) return null;
 		}
 		at = end;
 	}

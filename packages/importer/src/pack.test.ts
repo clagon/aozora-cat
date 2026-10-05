@@ -1,6 +1,13 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	writeFile
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -329,6 +336,37 @@ describe('packRun', () => {
 		});
 		expect(r.packed[0].images).toBe(8);
 		expect(peak).toBe(2);
+	});
+
+	it('1つの画像が予期しない理由で失敗しても、ほかの画像の取得が終わってから、失敗を返す', async () => {
+		routes.set('/gaiji/1-87/1-87-70.png', png());
+		routes.set('/gaiji/1-87/1-87-71.png', png());
+		serveWork(
+			1,
+			`${gaijiImg('1-87', '1-87-70')}${gaijiImg('1-87', '1-87-71')}<br />`
+		);
+		await importRun([catalog(1)]);
+		// 1枚目の控えの置き場所を、ディレクトリにして、読み込みを失敗させる。
+		const first = `${OFFICIAL}/gaiji/1-87/1-87-70.png`;
+		await mkdir(join(root, 'images', `${sha256(first)}.json`), {
+			recursive: true
+		});
+		let open = 0;
+		const slow: typeof fetch = async (url, init) => {
+			open++;
+			await new Promise((r) => setTimeout(r, 80));
+			try {
+				return await local(url, init);
+			} finally {
+				open--;
+			}
+		};
+		await expect(
+			pack({ concurrency: 2, fetchOptions: { ...fast, fetch: slow } })
+		).rejects.toThrow();
+		// 失敗を返した時点で、もう1枚の取得も、終わっている。
+		expect(open).toBe(0);
+		expect(hits).toContain('/gaiji/1-87/1-87-71.png');
 	});
 
 	it('画像が取得できない・読めない作品は、失敗として返し、ほかの作品は書く', async () => {

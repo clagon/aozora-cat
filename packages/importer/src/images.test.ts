@@ -22,17 +22,23 @@ import {
 	ihdr,
 	iend,
 	jpeg,
+	jpegData,
 	jpegParts,
 	png
 } from './test-images.ts';
 
 describe('sniffImage: 本物のエンコーダーの画像', () => {
-	it('実在の符号化（グレー・パレット・インターレース・標本化・プログレッシブ）を、読む', () => {
-		for (const [name, { mime, bytes }] of Object.entries(REAL_IMAGES))
-			expect(sniffImage(bytes), name).toEqual({ mime, width: 24, height: 16 });
+	it('実在の符号化（グレー・パレット・インターレース・標本化比・リスタート）を、読む。プログレッシブは扱わない', () => {
+		for (const [
+			name,
+			{ mime, width, height, accepted, bytes }
+		] of Object.entries(REAL_IMAGES))
+			expect(sniffImage(bytes), name).toEqual(
+				accepted ? { mime, width, height } : null
+			);
 	});
 
-	it('どの画像も、途中で切れたものと、余りのついたもの、中ほどを壊したものは、読まない', () => {
+	it('どの画像も、途中で切れたものと、余りのついたものは、読まない', () => {
 		for (const [name, { bytes }] of Object.entries(REAL_IMAGES)) {
 			// 先頭から途中まで（すべての長さ）。
 			for (let n = 0; n < bytes.length; n++)
@@ -47,13 +53,12 @@ describe('sniffImage: 本物のエンコーダーの画像', () => {
 		}
 	});
 
-	it('圧縮データの中を壊した PNG・GIF は、読まない', () => {
+	it('符号化データの中を壊した JPEG・PNG・GIF は、ほとんどを読まない', () => {
 		const flip = (bytes: Uint8Array, at: number) => {
 			const c = Uint8Array.from(bytes);
 			c[at] ^= 0xff;
 			return c;
 		};
-		// PNG は CRC、GIF は復号できない符号で、拒む。
 		for (const name of ['base.png', 'pal.png', 'ilace.png']) {
 			const { bytes } = REAL_IMAGES[name];
 			expect(
@@ -61,12 +66,93 @@ describe('sniffImage: 本物のエンコーダーの画像', () => {
 				name
 			).toBeNull();
 		}
-		const gifBytes = REAL_IMAGES['pal.gif'].bytes;
-		let rejected = 0;
-		for (let at = 6; at < gifBytes.length; at++)
-			if (sniffImage(flip(gifBytes, at)) === null) rejected++;
-		// 色表や画面の情報を壊しても読めるものがあるので、すべてではないが、多くを拒む。
-		expect(rejected).toBeGreaterThan(gifBytes.length / 2);
+		// JPEG・GIF: 1バイトずつ壊して、読めなくなるものが、半分より多い（色表・量子化表の値の
+		// 変化は、符号の構造に影響しないので、すべてではない）。
+		for (const name of ['pal.gif', 's_2x2.jpg', 'rst.jpg', 'gray.jpg']) {
+			const { bytes } = REAL_IMAGES[name];
+			let rejected = 0;
+			for (let at = 2; at < bytes.length; at++)
+				if (sniffImage(flip(bytes, at)) === null) rejected++;
+			expect(rejected, name).toBeGreaterThan(bytes.length / 4);
+		}
+	});
+});
+
+describe('sniffImage: JPEG の符号化データ', () => {
+	/** 1成分の JPEG。ハフマン表は、同じ長さの符号が、指定した値の数だけ並ぶ。 */
+	const jp = (o: {
+		dc?: number[];
+		ac?: number[];
+		len?: number;
+		w?: number;
+		h?: number;
+		dri?: number;
+		data?: number[];
+	}) => {
+		const { dc = [0], ac = [0], len = 2, w = 16, h = 16, dri, data } = o;
+		const p = jpegParts(w, h);
+		const table = (cls: number, symbols: number[]) => {
+			const counts = new Array(16).fill(0);
+			counts[len - 1] = symbols.length;
+			return [cls, ...counts, ...symbols];
+		};
+		const body = [...table(0x00, dc), ...table(0x10, ac)];
+		const dht = [0xff, 0xc4, 0, body.length + 2, ...body];
+		return Uint8Array.from([
+			...p.soi,
+			...p.dqt,
+			...p.sof,
+			...dht,
+			...(dri === undefined ? [] : [0xff, 0xdd, 0, 4, dri >> 8, dri & 255]),
+			...p.sos,
+			...(data ?? jpegData(w, h)),
+			...p.eoi
+		]);
+	};
+
+	it('符号が表の定義どおりに復号でき、ブロックの数と、符号化データの長さが合う画像を、読む', () => {
+		expect(sniffImage(jp({}))).not.toBeNull();
+		expect(sniffImage(jp({ w: 24, h: 8 }))).not.toBeNull();
+		expect(sniffImage(jp({ w: 33, h: 17 }))).not.toBeNull();
+	});
+
+	it('表にない符号で始まる・ブロックが足りない・余る・埋めのビットが1でない符号化データは、読まない', () => {
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		// 長さ1の符号が '0' だけの表に、1 のビットが続く（定義のない符号）。
+		bad(jp({ len: 1, data: [0xff, 0x00] }), '定義のない符号');
+		bad(jp({ data: [0x00] }), 'ブロックが足りない');
+		bad(jp({ data: [0x00, 0x00, 0x00] }), 'バイトが余る');
+		bad(jp({ w: 24, h: 8, data: [0x00, 0x00] }), '埋めのビットが 1 でない');
+		bad(jp({ w: 24, h: 8, data: [0x00, 0x0f, 0x00] }), '余り');
+	});
+
+	it('直流の大きさが範囲外・交流の連なりが64を超える符号化データは、読まない', () => {
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		// DC の符号が大きさ 12（8ビットの画像では 11 まで）を表す。
+		bad(jp({ dc: [12] }), 'DC の大きさが範囲外');
+		// AC の符号が 16 個のゼロ（ZRL）だけを表し、ブロックの終わりまでに収まらない。
+		bad(jp({ ac: [0xf0] }), 'AC がブロックを超える');
+		// AC の符号が、走り 15・大きさ 10 を、同じ符号で繰り返し、63 を超える。
+		bad(jp({ ac: [0xfa], data: new Array(64).fill(0) }), 'AC の位置が範囲外');
+	});
+
+	it('リスタート間隔: マーカーが、決めた間隔で、0 から 7 の順に並べば読む。欠けた・順が違うものは読まない', () => {
+		// 16×16 は 4 ブロック。2 ブロックごとに RST を入れる（各ブロック 4 ビットなので、1バイトが 2 ブロック）。
+		const good = [0x00, 0xff, 0xd0, 0x00];
+		expect(sniffImage(jp({ dri: 2, data: good }))).not.toBeNull();
+		const bad = (bytes: Uint8Array, why: string) =>
+			expect(sniffImage(bytes), why).toBeNull();
+		bad(jp({ dri: 2, data: [0x00, 0x00] }), 'RST がない');
+		bad(jp({ dri: 2, data: [0x00, 0xff, 0xd1, 0x00] }), 'RST の番号が違う');
+		bad(
+			jp({ dri: 2, data: [0x00, 0xff, 0xd0, 0x00, 0xff, 0xd1] }),
+			'余分な RST'
+		);
+		// 4 ブロックを 1 ブロックごとに区切ると、RST が 0, 1, 2 の順に 3 つ要る。
+		const four = [0x0f, 0xff, 0xd0, 0x0f, 0xff, 0xd1, 0x0f, 0xff, 0xd2, 0x0f];
+		expect(sniffImage(jp({ dri: 1, data: four }))).not.toBeNull();
 	});
 });
 
@@ -379,9 +465,10 @@ describe('sniffImage: 構造', () => {
 		bad(ok(p.dqt, arithmetic, p.dht, p.sos, p.data), '算術符号は扱わない');
 		const progressive = [...p.sof];
 		progressive[1] = 0xc2;
-		expect(
-			sniffImage(ok(p.dqt, progressive, p.dht, p.sos, p.data))
-		).not.toBeNull();
+		bad(
+			ok(p.dqt, progressive, p.dht, p.sos, p.data),
+			'プログレッシブは扱わない'
+		);
 		const twoTables = [
 			0xff,
 			0xdb,

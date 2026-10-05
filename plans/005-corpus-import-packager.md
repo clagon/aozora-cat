@@ -224,16 +224,20 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   trailer that is the last byte, and every image's LZW stream must decode, by
   the specification's code widths and dictionary growth, to exactly the pixels
   of that image's own descriptor (within the size limits); a JPEG must have
-  well-formed quantization and Huffman tables, one baseline, extended or
-  progressive Huffman frame whose components and sampling factors are valid,
-  scans that reference existing components (and, for baseline, existing tables)
-  with non-empty entropy data, and an EOI that is the last two bytes (arithmetic
-  coding and other frame types are not accepted). Sides are at most 10,000 px,
+  well-formed quantization and Huffman tables (codes that do not overlap), one
+  baseline or extended sequential Huffman frame (8 bit) whose components and
+  sampling factors are valid, and scans that reference existing components and
+  tables whose entropy data decodes completely: every Huffman code is defined,
+  DC sizes and AC runs stay in range, the number of blocks matches the image
+  (interleaved or not, with the restart interval's RST0 to RST7 markers in
+  order), the padding is all ones and no bytes are left over, then an EOI that
+  is the last two bytes. Progressive, arithmetic-coded and lossless JPEGs are
+  not accepted and show up in the failure list. Sides are at most 10,000 px,
   the area at most 16 million pixels, the file 8 MiB. Header-only or truncated
   images are rejected as `invalid-image`. The validators are tested against
   images from real encoders (ImageMagick, libjpeg, giflib: gray, palette,
-  interlaced, subsampled and progressive variants, every truncation of each
-  rejected) and the GIF specification's 1x1 example, besides the official PNGs
+  interlaced, 1x1/2x1/1x2/2x2 subsampled and restart-interval variants, every
+  truncation of each rejected, and a progressive JPEG rejected) and the GIF specification's 1x1 example, besides the official PNGs
   fetched from the site; the approved works contain no JPEG or GIF, so those
   two are checked only against encoder output, and a legitimate one that fails
   here would show up in the failure list rather than ship. A readable image is kept under `raw/<sha256>`

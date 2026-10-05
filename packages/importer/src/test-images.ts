@@ -123,6 +123,17 @@ export const gif = (w = 16, h = 16): Uint8Array =>
 		0x3b
 	]);
 
+/**
+ * 符号化データ。1成分（標本化比 1x1）なので、8×8 のブロックごとに、DC の符号（2ビットの '00' = 大きさ 0）
+ * と AC の符号（2ビットの '00' = EOB）で 4 ビット。最後のバイトの余りは 1 で埋める。
+ */
+export const jpegData = (w: number, h: number): number[] => {
+	const bits = Math.ceil(w / 8) * Math.ceil(h / 8) * 4;
+	const out = new Array(Math.floor(bits / 8)).fill(0);
+	if (bits % 8 > 0) out.push((1 << (8 - (bits % 8))) - 1);
+	return out;
+};
+
 /** JPEG: 量子化表・ハフマン表（DC と AC）・フレーム（1成分）・スキャン・符号化データ・EOI を、順に持つ。 */
 export const jpegParts = (w = 16, h = 16) => ({
 	soi: [0xff, 0xd8],
@@ -160,7 +171,7 @@ export const jpegParts = (w = 16, h = 16) => ({
 		0
 	],
 	sos: [0xff, 0xda, 0x00, 0x08, 1, 1, 0x00, 0, 0x3f, 0],
-	data: [0x7f, 0xff, 0x00, 0x12],
+	data: jpegData(w, h),
 	eoi: [0xff, 0xd9]
 });
 export const jpeg = (w = 16, h = 16): Uint8Array => {

@@ -12,7 +12,7 @@ import {
 } from '../../../src/lib/domain/asset.ts';
 import { readWork, type Work } from '../../../src/lib/domain/work.ts';
 import { assertFetchOptions, type FetchOptions } from './download.ts';
-import { ImageLoader, type LoadedImage } from './images.ts';
+import { ImageLoader, type ImageResult, type LoadedImage } from './images.ts';
 import { readOptional, acquireLock, sha256, writeAtomic } from './store.ts';
 import { assertPacing, createGate } from './time.ts';
 import { verifyRun, workFilePath } from './run.ts';
@@ -220,7 +220,14 @@ async function packOne(
 	const work = parsed.work;
 
 	const urls = collectImageUrls(work);
-	const loaded = await Promise.all(urls.map((u) => loader.load(u)));
+	// 1つが予期しない失敗をしても、ほかの画像の取得が終わるのを待ってから、失敗を返す。先に返すと、
+	// 取得と控えの書き込みが、packRun の完了（ロックの解放）のあとも、裏で続いてしまう。
+	const settled = await Promise.allSettled(urls.map((u) => loader.load(u)));
+	const loaded: ImageResult[] = [];
+	for (const r of settled) {
+		if (r.status === 'rejected') throw r.reason;
+		loaded.push(r.value);
+	}
 	const images = new Map<string, LoadedImage>();
 	for (const [i, r] of loaded.entries()) {
 		if (!r.ok)
