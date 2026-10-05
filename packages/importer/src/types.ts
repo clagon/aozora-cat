@@ -1,3 +1,5 @@
+import type { Diagnostic as ConversionDiagnostic } from '../../converter/src/types.ts';
+
 export type Role = 'author' | 'translator' | 'editor' | 'reviser' | 'other';
 
 export type Person = { id: string; role: Role; name: string; reading?: string };
@@ -57,4 +59,50 @@ export type SearchEntry = {
 	orthography: string;
 	updated: string;
 	people: { role: Role; name: string; reading?: string }[];
+};
+
+/** 取得や変換に失敗した1回の試み。次の経路へ移った理由を残す。 */
+export type Attempt = {
+	path: 'xhtml' | 'text';
+	url: string;
+	code: string;
+	message: string;
+	location?: string;
+};
+
+/** 変換元の本文の記録。再取得の要否と、同じ内容かどうかの判断に使う。 */
+export type SourceRecord = {
+	path: 'xhtml' | 'text';
+	url: string;
+	/** 目録の「最終更新日」。変わっていなければ、取得し直さない。 */
+	catalogUpdated: string;
+	etag?: string;
+	lastModified?: string;
+	rawSha256: string;
+	rawBytes: number;
+};
+
+/** 1作品の取り込み結果。時刻などの実行ごとに変わる値は入れない（同じ入力から同じ記録になる）。 */
+export type WorkRecord =
+	| {
+			id: string;
+			status: 'converted';
+			source: SourceRecord;
+			converter: { version: string; path: 'xhtml' | 'text' };
+			workSha256: string;
+			workBytes: number;
+			diagnostics: ConversionDiagnostic[];
+			attempts: Attempt[];
+	  }
+	| {
+			id: string;
+			status: 'failed';
+			attempts: Attempt[];
+	  };
+
+export type Manifest = {
+	schemaVersion: 1;
+	converterVersion: string;
+	counts: { total: number; converted: number; failed: number };
+	records: WorkRecord[];
 };

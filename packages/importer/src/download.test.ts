@@ -1,8 +1,13 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { crc32, deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
-import { FetchError, fetchBytes, fetchCatalog } from './download.ts';
+import { makeZip } from './test-zip.ts';
+import {
+	FetchError,
+	fetchBytes,
+	fetchCatalog,
+	fetchResource
+} from './download.ts';
 
 type Handler = Parameters<typeof createServer>[1];
 let server: Server | undefined;
@@ -50,6 +55,43 @@ describe('fetchBytes', () => {
 			)
 		).toBe('hello');
 		expect(seen[0].headers['user-agent']).toContain('aozora-cat');
+	});
+
+	it('検証子を付けて取得し、変わっていなければ本文を受け取らず、変わっていれば新しい検証子を返す', async () => {
+		let etag = '"v1"';
+		const url = await serve((req, res) => {
+			if (req.url === '/cheat') return void res.writeHead(304).end();
+			if (req.headers['if-none-match'] === etag)
+				return void res.writeHead(304).end();
+			res
+				.writeHead(200, {
+					etag,
+					'last-modified': 'Wed, 03 Jul 2024 17:09:02 GMT'
+				})
+				.end('body');
+		});
+		const first = await fetchResource(url, { maxBytes: 100, ...fast });
+		expect(first).toMatchObject({
+			status: 'ok',
+			etag: '"v1"',
+			lastModified: 'Wed, 03 Jul 2024 17:09:02 GMT'
+		});
+		expect(seen[0].headers).not.toHaveProperty('if-none-match');
+		expect(
+			await fetchResource(url, { maxBytes: 100, etag: '"v1"', ...fast })
+		).toEqual({
+			status: 'not-modified'
+		});
+		etag = '"v2"';
+		expect(
+			await fetchResource(url, { maxBytes: 100, etag: '"v1"', ...fast })
+		).toMatchObject({ status: 'ok', etag: '"v2"' });
+		// 検証子がなければ、304 は想定外として失敗にする。
+		etag = '"v1"';
+		const cheat = new URL('/cheat', url).href;
+		expect(await fails(fetchBytes(cheat, { maxBytes: 100, ...fast }))).toBe(
+			'status'
+		);
 	});
 
 	it('503 は再試行して成功し、404 は再試行しない', async () => {
@@ -135,42 +177,9 @@ describe('fetchBytes', () => {
 	});
 });
 
-/** CSV 1つだけのzip。 */
-function zipOf(entries: [string, string][]): Buffer {
-	const parts: Buffer[] = [];
-	const central: Buffer[] = [];
-	let offset = 0;
-	for (const [n, data] of entries) {
-		const raw = Buffer.from(data);
-		const packed = deflateRawSync(raw);
-		const name = Buffer.from(n);
-		const local = Buffer.alloc(30);
-		local.writeUInt32LE(0x04034b50, 0);
-		local.writeUInt16LE(8, 8);
-		local.writeUInt32LE(crc32(raw), 14);
-		local.writeUInt32LE(packed.length, 18);
-		local.writeUInt32LE(raw.length, 22);
-		local.writeUInt16LE(name.length, 26);
-		const head = Buffer.alloc(46);
-		head.writeUInt32LE(0x02014b50, 0);
-		head.writeUInt16LE(8, 10);
-		head.writeUInt32LE(crc32(raw), 16);
-		head.writeUInt32LE(packed.length, 20);
-		head.writeUInt32LE(raw.length, 24);
-		head.writeUInt16LE(name.length, 28);
-		head.writeUInt32LE(offset, 42);
-		parts.push(local, name, packed);
-		central.push(head, name);
-		offset += 30 + name.length + packed.length;
-	}
-	const dir = Buffer.concat(central);
-	const end = Buffer.alloc(22);
-	end.writeUInt32LE(0x06054b50, 0);
-	end.writeUInt16LE(entries.length, 10);
-	end.writeUInt32LE(dir.length, 12);
-	end.writeUInt32LE(offset, 16);
-	return Buffer.concat([...parts, dir, end]);
-}
+/** 名前とデータの組から zip を作り、応答にそのまま使える Buffer にする。 */
+const zipOfEntries = (entries: [string, string][]) =>
+	Buffer.from(makeZip(entries.map(([name, data]) => ({ name, data }))));
 
 describe('fetchCatalog', () => {
 	const header =
@@ -179,7 +188,7 @@ describe('fetchCatalog', () => {
 		'"000092","蜘蛛の糸","くものいと","くものいと","","","","","NDC 913","新字新仮名","なし",2000-01-01,2014-09-17,"https://www.aozora.gr.jp/cards/000879/card92.html","000879","芥川","竜之介","あくたがわ","りゅうのすけ","著者","なし","https://www.aozora.gr.jp/cards/000879/files/92_ruby_164.zip",2014-09-17,"ShiftJIS","https://www.aozora.gr.jp/cards/000879/files/92_14545.html",2014-09-17,"ShiftJIS"';
 
 	it('zip を取得して、BOM 付きの CSV を目録にする', async () => {
-		const body = zipOf([['list.csv', `﻿${header}\n${row}\n`]]);
+		const body = zipOfEntries([['list.csv', `﻿${header}\n${row}\n`]]);
 		const url = await serve((_, res) => res.end(body));
 		const c = await fetchCatalog({ url, ...fast });
 		expect(c.works.map((w) => w.title)).toEqual(['蜘蛛の糸']);
@@ -188,12 +197,12 @@ describe('fetchCatalog', () => {
 	it('zip でない応答、CSV が1つでない zip、UTF-8 でない CSV は、目録にせず失敗にする', async () => {
 		for (const body of [
 			Buffer.from('<html>メンテナンス中</html>'),
-			zipOf([
+			zipOfEntries([
 				['a.csv', header],
 				['b.csv', header]
 			]),
-			zipOf([['a.txt', header]]),
-			zipOf([['a.csv', header]]).fill(0xff, 40, 60)
+			zipOfEntries([['a.txt', header]]),
+			zipOfEntries([['a.csv', header]]).fill(0xff, 40, 60)
 		]) {
 			const url = await serve((_, res) => res.end(body));
 			expect(

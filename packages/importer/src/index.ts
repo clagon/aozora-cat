@@ -9,3 +9,8 @@ export {
 export { ZipError, readZip } from './zip.ts';
 export { parseCsv } from './csv.ts';
 export type * from './types.ts';
+export { decodeBody, toSource } from './body.ts';
+export { CommitRefused, commitRun, readCurrent, runImport } from './run.ts';
+export type { RunOptions, RunResult, RunStats } from './run.ts';
+export { fetchResource } from './download.ts';
+export type { Fetched, Validators } from './download.ts';

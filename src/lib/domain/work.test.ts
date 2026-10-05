@@ -306,6 +306,18 @@ describe('parseWork', () => {
 			'provenance.source.fileUrl',
 			'https://www.aozora.gr.jp/cards/000879/files/ruby_14545.zip'
 		);
+		// 公式には、番号だけのファイル名（733.html）もある。作品番号が合えば通し、違えば拒否する。
+		const plain = valid() as {
+			id: string;
+			provenance: { source: Record<string, string> };
+		};
+		plain.provenance.source.fileUrl =
+			'https://www.aozora.gr.jp/cards/000879/files/92.html';
+		expect(parseWork(plain).ok).toBe(true);
+		rejects(
+			'provenance.source.fileUrl',
+			'https://www.aozora.gr.jp/cards/000879/files/93.html'
+		);
 		// 作品番号が合っていても、図書カードとファイルの人物ディレクトリが違えば拒否する。
 		rejects(
 			'provenance.source.fileUrl',

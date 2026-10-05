@@ -96,6 +96,47 @@ Record URL, upstream timestamps, hashes, converter version, and diagnostics.
 **Verify**: a local fixture server proves retry, resume, unchanged reuse, and
 failure rollback without reaching the public site.
 
+Decisions made in this step (`packages/importer`, `run.ts`):
+
+- Layout under `.corpus/` (ignored by Git): `raw/<sha256>` holds fetched
+  bodies and is never rewritten; each run writes only to
+  `runs/<runId>/{works,records}/<id>.json`; `manifest.json` is written only
+  when every target has a record; `current.json` names the last known-good run
+  and only `commitRun` changes it. Every file is written to a temporary name and
+  renamed, so an interrupted run leaves no half-written file.
+- A run fetches XHTML first and falls back to the text zip when the fetch,
+  decoding, or conversion fails; each failed attempt is kept in the record
+  (`attempts`). A work with no usable path is recorded as `failed` and the run
+  continues. Records hold no clock values, so the same inputs give the same
+  records, works, and manifest bytes.
+- Reuse, in order: if the catalog update date and the converter version equal the
+  previous run's and the work file still matches its recorded hash, nothing is
+  requested. Otherwise the body is requested with `If-None-Match` /
+  `If-Modified-Since` from the previous record (only while the raw copy still
+  exists); a 304 reuses the raw copy, and a body whose hash equals the previous
+  one (or a changed catalog date with identical bytes) is not converted again.
+  `revalidate` forces the conditional request for every work. The official site
+  returns `ETag` and `Last-Modified` and answers 304 (checked live on 3 works).
+- Resume: running the same `runId` again skips works that already have a
+  record, except fetch-level failures (network, timeout, status), which are
+  tried again. Conversion failures are deterministic and are not retried. A
+  corrupt record is treated as missing. A finished run (with a manifest) cannot
+  be run again.
+- Concurrency and politeness: a bounded worker pool (default 4) and a minimum
+  interval between request starts (default 100 ms). An abort signal stops
+  starting new works and leaves the run resumable.
+- Rollback: `commitRun` refuses a run that is unfinished, empty, or whose failure
+  ratio exceeds `maxFailureRatio` (default 2%), and leaves `current.json`
+  untouched. Because a run never writes outside its own directory and `raw/`,
+  a failed run cannot alter the last known-good release.
+- Copyright-active works are filtered again inside `runImport` (through
+  `selectBodies`), so a caller cannot make it request their bodies.
+- The work schema now accepts the official number-only file names
+  (`733.html`, 116 works) as provenance; before, it required `<id>_<n>`, so
+  those works could not be converted.
+- Known limits: failed works are requested again on the next run because no
+  validators are kept for failures; image fetching and packaging are Step 3.
+
 ### Step 3: Package one asset per work
 
 Serialize metadata, semantic content, and validated images into one compressed

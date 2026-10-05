@@ -23,7 +23,7 @@ plans in the order below unless the dependency column allows parallel work.
 | 002 | Define mobile wireframes and design contracts | P1 | M | 001 | DONE |
 | 003 | Prove vertical pagination with representative works | P1 | L | 001, 002 | IN PROGRESS |
 | 004 | Build the safe Aozora conversion core | P1 | L | 001, 003 | IN PROGRESS: Steps 1 (schema), 2 (XHTML converter), 3 (text fallback) and 4 (stable anchors, position migration, versioned reader) done; 003 real-device acceptance still pending |
-| 005 | Build the full catalog import and release packager | P1 | L | 004 | IN PROGRESS: Step 1 (catalog import) done |
+| 005 | Build the full catalog import and release packager | P1 | L | 004 | IN PROGRESS: Steps 1 (catalog import) and 2 (incremental fetch) done |
 | 006 | Implement the mobile shell, discovery, and search | P1 | L | 002, 004 | TODO |
 | 007 | Implement work details and the reading experience | P1 | L | 003, 004, 006 | TODO |
 | 008 | Implement local reading state and the bookshelf | P1 | L | 006, 007 | TODO |
