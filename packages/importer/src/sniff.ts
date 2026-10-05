@@ -93,7 +93,17 @@ function pngInfo(b: Uint8Array): Sniffed | null {
 		} else {
 			if (idat.length > 0) idatDone = true;
 			if (type === 'PLTE') {
-				if (plte || idat.length > 0 || len % 3 !== 0 || len < 3 || len > 768)
+				// 色の種類が 0・4（グレー）では、PLTE を持てない。パレット画像では、深さで表せる数まで。
+				if (
+					plte ||
+					idat.length > 0 ||
+					len % 3 !== 0 ||
+					len < 3 ||
+					len > 768 ||
+					color === 0 ||
+					color === 4 ||
+					(color === 3 && len / 3 > 2 ** depth)
+				)
 					return null;
 				plte = true;
 			} else if (type === 'IHDR') {
@@ -431,7 +441,13 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 				const pq = body[p] >> 4;
 				const tq = body[p] & 15;
 				if (pq > 1 || tq > 3) return null;
-				p += 1 + 64 * (pq + 1);
+				const size = 64 * (pq + 1);
+				if (p + 1 + size > body.length) return null;
+				// 量子化の値は 1 以上（0 は規格で使えない）。
+				for (let k = 0; k < 64; k++)
+					if ((pq === 0 ? body[p + 1 + k] : u16(body, p + 1 + 2 * k)) === 0)
+						return null;
+				p += 1 + size;
 				quant.add(tq);
 			}
 			if (p !== body.length) return null;

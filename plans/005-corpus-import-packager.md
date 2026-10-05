@@ -218,7 +218,8 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   are accepted, in canonical form (a URL that parses back to itself, with no `.`
   or `..` segment, query or fragment, since the fetch would normalize it out of
   the allowlist). The content is checked rather than trusted (not decoded to pixels): a PNG
-  must have every chunk's CRC right, no unknown critical chunk (ancillary ones,
+  must have every chunk's CRC right, a PLTE only where the color type allows one
+  (never for grayscale; at most 2^depth entries for indexed images), no unknown critical chunk (ancillary ones,
   whose type starts with a lowercase letter, are skipped), a valid IHDR (color type, bit depth,
   interlace), its PLTE where needed, consecutive IDAT chunks, IEND last with
   nothing after it, and an IDAT that inflates to exactly the size its rows need
@@ -226,7 +227,7 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   trailer that is the last byte, and every image's LZW stream must decode, by
   the specification's code widths and dictionary growth, to exactly the pixels
   of that image's own descriptor (within the size limits); a JPEG must have
-  well-formed quantization and Huffman tables (codes that do not overlap, symbol
+  well-formed quantization (all values at least 1) and Huffman tables (codes that do not overlap, symbol
   values unique and in range: DC sizes 0 to 11, AC run/size pairs with size 1 to
   10 plus EOB and ZRL, even for codes the scan never uses), one
   baseline or extended sequential Huffman frame (8 bit) whose components and
@@ -253,8 +254,9 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   remembered so the same missing image is not requested again. A `revalidate`
   check happens once per URL per process.
 - A work's images are held in memory only up to `maxWorkImageBytes` (default
-  32 MiB of raw bytes) while it is packed: loading stops as soon as the running
-  total exceeds it and the work fails with `images-too-large`, so a work with
+  32 MiB of raw bytes) while it is packed, counting the downloads in flight (each
+  up to 8 MiB) by limiting a work's own parallelism to budget / 8 MiB: loading
+  stops as soon as the running total exceeds it and the work fails with `images-too-large`, so a work with
   many large images cannot exhaust memory (the pack workers multiply the
   bound). Failures are reported in a deterministic order.
 - `packRun` packs the converted works of a verified run into an empty output

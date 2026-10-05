@@ -12,7 +12,12 @@ import {
 } from '../../../src/lib/domain/asset.ts';
 import { readWork, type Work } from '../../../src/lib/domain/work.ts';
 import { assertFetchOptions, type FetchOptions } from './download.ts';
-import { ImageLoader, type ImageResult, type LoadedImage } from './images.ts';
+import {
+	ImageLoader,
+	MAX_IMAGE_BYTES,
+	type ImageResult,
+	type LoadedImage
+} from './images.ts';
 import { readOptional, acquireLock, sha256, writeAtomic } from './store.ts';
 import { assertPacing, createGate } from './time.ts';
 import { verifyRun, workFilePath } from './run.ts';
@@ -263,7 +268,17 @@ async function packOne(
 	};
 	await Promise.all(
 		Array.from(
-			{ length: Math.min(options.concurrency ?? 4, urls.length) },
+			{
+				// 取得中の画像（1枚あたり最大 MAX_IMAGE_BYTES）も、予算の中に収める。
+				length: Math.max(
+					1,
+					Math.min(
+						options.concurrency ?? 4,
+						urls.length,
+						Math.floor(budget / MAX_IMAGE_BYTES)
+					)
+				)
+			},
 			worker
 		)
 	);

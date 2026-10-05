@@ -293,6 +293,42 @@ describe('sniffImage: 構造', () => {
 			'種類が英字でないチャンク'
 		);
 		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2, 8, 0),
+				chunk('PLTE', [0, 0, 0]),
+				idatFor(4, 2),
+				iend()
+			),
+			'グレーの画像に PLTE'
+		);
+		bad(
+			U(
+				PNG_SIGNATURE,
+				ihdr(4, 2, 8, 4),
+				chunk('PLTE', [0, 0, 0]),
+				idatFor(4, 2, 16),
+				iend()
+			),
+			'グレー+透過の画像に PLTE'
+		);
+		const ok = (bytes: Uint8Array) => expect(sniffImage(bytes)).not.toBeNull();
+		const palette = (n: number) => chunk('PLTE', new Array(3 * n).fill(0));
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 2, 4, 3), palette(17), idatFor(4, 2, 4), iend()),
+			'4ビットのパレットが 17 色'
+		);
+		bad(
+			U(PNG_SIGNATURE, ihdr(4, 2, 1, 3), palette(3), idatFor(4, 2, 1), iend()),
+			'1ビットのパレットが 3 色'
+		);
+		ok(
+			U(PNG_SIGNATURE, ihdr(4, 2, 4, 3), palette(16), idatFor(4, 2, 4), iend())
+		);
+		ok(
+			U(PNG_SIGNATURE, ihdr(4, 2, 8, 2), palette(4), idatFor(4, 2, 24), iend())
+		);
+		bad(
 			U(PNG_SIGNATURE, ihdr(3, 2, 8, 3), idatFor(3, 2), iend()),
 			'PLTE がない'
 		);
@@ -504,6 +540,30 @@ describe('sniffImage: 構造', () => {
 		bad(
 			make(p.soi, p.dqt, p.sof, p.sof, p.dht, p.sos, p.data, p.eoi),
 			'フレームが2つ'
+		);
+		// 量子化の値に 0 があるもの（規格で使えない）は、8ビットでも16ビットでも読まない。
+		const dqt0 = [...p.dqt];
+		dqt0[5] = 0;
+		bad(
+			make(p.soi, dqt0, p.sof, p.dht, p.sos, p.data, p.eoi),
+			'量子化の値が 0'
+		);
+		const dqt16 = (zeroAt: number | null) => [
+			0xff,
+			0xdb,
+			0,
+			131,
+			0x10,
+			...Array.from({ length: 64 }, (_, k) =>
+				k === zeroAt ? [0, 0] : [0, 2]
+			).flat()
+		];
+		expect(
+			sniffImage(make(p.soi, dqt16(null), p.sof, p.dht, p.sos, p.data, p.eoi))
+		).not.toBeNull();
+		bad(
+			make(p.soi, dqt16(10), p.sof, p.dht, p.sos, p.data, p.eoi),
+			'16ビットの量子化の値が 0'
 		);
 		bad(
 			make(p.soi, [0xff, 0xdb, 0xff, 0xff], p.sof, p.sos, p.data, p.eoi),

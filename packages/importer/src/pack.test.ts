@@ -396,6 +396,29 @@ describe('packRun', () => {
 		expect(ok.packed.map((p) => p.images)).toEqual([8, 0]);
 	});
 
+	it('取得中の画像も予算に含めるので、1つの作品を同時に取得する数は、予算を、1枚の上限で割った数までになる', async () => {
+		const names = Array.from({ length: 8 }, (_, i) => `1-87-${70 + i}`);
+		for (const n of names) routes.set(`/gaiji/1-87/${n}.png`, png());
+		serveWork(1, `${names.map((n) => gaijiImg('1-87', n)).join('')}<br />`);
+		await importRun([catalog(1)]);
+		let open = 0;
+		let peak = 0;
+		const slow: typeof fetch = async (url, init) => {
+			peak = Math.max(peak, ++open);
+			await new Promise((r) => setTimeout(r, 15));
+			open--;
+			return local(url, init);
+		};
+		// 予算は 8MiB の2枚ぶん。並列数を 8 にしても、取得中は 2 枚まで。
+		const r = await pack({
+			concurrency: 8,
+			maxWorkImageBytes: 16 * 2 ** 20,
+			fetchOptions: { ...fast, fetch: slow }
+		});
+		expect(r.failed).toEqual([]);
+		expect(peak).toBe(2);
+	});
+
 	it('1つの作品の画像の予算に、使えない値を渡すと、断る', async () => {
 		serveWork(1, '本文。<br />');
 		await importRun([catalog(1)]);
