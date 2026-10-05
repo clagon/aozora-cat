@@ -11,6 +11,7 @@ import {
 	type FetchOptions
 } from './download.ts';
 import { readOptional, sha256, writeAtomic } from './store.ts';
+import { assertPacing, createLimiter } from './time.ts';
 
 /** 1枚の大きさの上限（バイト）と、画素数の上限。端末で展開するときの負荷を抑える。 */
 export const MAX_IMAGE_BYTES = 8 * 2 ** 20;
@@ -109,6 +110,8 @@ export type ImageLoaderOptions = {
 	fetchOptions?: Partial<FetchOptions>;
 	/** 通信を始める前に待つ処理（取得の間隔を、本文の取得と共有する）。 */
 	waitTurn?: () => Promise<void>;
+	/** 同時に通信する数の上限（作品をまたいで共通）。既定は 4。 */
+	concurrency?: number;
 	/** 控えがあっても、検証子つきで取得し直す。 */
 	revalidate?: boolean;
 };
@@ -166,9 +169,12 @@ const toLoaded = (bytes: Uint8Array, hash: string): ImageResult => {
 export class ImageLoader {
 	#memo = new Map<string, Promise<ImageResult>>();
 	#opts: ImageLoaderOptions;
+	#limit: ReturnType<typeof createLimiter>;
 	constructor(opts: ImageLoaderOptions) {
 		assertFetchOptions(opts.fetchOptions ?? {});
+		assertPacing(opts.concurrency ?? 4, 0);
 		this.#opts = opts;
+		this.#limit = createLimiter(opts.concurrency ?? 4);
 	}
 
 	load(url: string): Promise<ImageResult> {
@@ -203,13 +209,16 @@ export class ImageLoader {
 
 		let got;
 		try {
-			got = await fetchResource(url, {
-				...this.#opts.fetchOptions,
-				maxBytes: MAX_IMAGE_BYTES,
-				beforeAttempt: this.#opts.waitTurn,
-				...(meta &&
-					cached && { etag: meta.etag, lastModified: meta.lastModified })
-			});
+			// 通信している間だけ、同時に走る数を抑える（間隔の待ちは、始める時刻をそろえるだけ）。
+			got = await this.#limit(() =>
+				fetchResource(url, {
+					...this.#opts.fetchOptions,
+					maxBytes: MAX_IMAGE_BYTES,
+					beforeAttempt: this.#opts.waitTurn,
+					...(meta &&
+						cached && { etag: meta.etag, lastModified: meta.lastModified })
+				})
+			);
 		} catch (e) {
 			if (!(e instanceof FetchError)) throw e;
 			return { ok: false, code: `fetch-${e.code}`, message: e.message };

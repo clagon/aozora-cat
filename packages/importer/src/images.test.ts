@@ -188,6 +188,32 @@ describe('ImageLoader', () => {
 		});
 	});
 
+	it('同時に通信する数を、設定した数までに抑える', async () => {
+		let open = 0;
+		let peak = 0;
+		const slow: typeof fetch = async (url, init) => {
+			peak = Math.max(peak, ++open);
+			await new Promise((r) => setTimeout(r, 20));
+			open--;
+			return local(url, init);
+		};
+		const urls = Array.from(
+			{ length: 10 },
+			(_, i) => `https://www.aozora.gr.jp/gaiji/1-87/1-87-${70 + i}.png`
+		);
+		for (const [i] of urls.entries())
+			routes.set(`/gaiji/1-87/1-87-${70 + i}.png`, { body: png(16 + i, 16) });
+		const l = loader({
+			concurrency: 2,
+			fetchOptions: { fetch: slow, retries: 0, timeoutMs: 2000 }
+		});
+		const results = await Promise.all(urls.map((u) => l.load(u)));
+		expect(results.every((r) => r.ok)).toBe(true);
+		expect(peak).toBe(2);
+		for (const concurrency of [0, 65, Number.NaN, 1.5])
+			expect(() => loader({ concurrency })).toThrow(RangeError);
+	});
+
 	it('使えない設定は、通信の前に断る', () => {
 		expect(() => loader({ fetchOptions: { maxBytes: Number.NaN } })).toThrow(
 			RangeError

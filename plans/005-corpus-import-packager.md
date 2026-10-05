@@ -211,7 +211,9 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   fails with `image-too-large`, and more than 1,000 parts fails with
   `too-many-parts`.
 - Images are fetched by `ImageLoader`, one request per URL per process, through
-  the same politeness gate as bodies (`createGate`). Only
+  the same politeness gate as bodies (`createGate`) and a limiter on in-flight
+  downloads (`concurrency`, default 4, shared across works), so a work with many
+  images cannot open many connections at once. Only
   `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
   are accepted. The content is sniffed rather than trusted: PNG, JPEG or GIF with
   a readable header and a proper end marker, sides up to 10,000 px, at most

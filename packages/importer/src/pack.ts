@@ -170,6 +170,7 @@ export async function packRun(options: PackOptions): Promise<PackResult> {
 		const loader = new ImageLoader({
 			root,
 			fetchOptions: options.fetchOptions,
+			concurrency,
 			waitTurn: createGate(minIntervalMs),
 			revalidate: options.revalidateImages
 		});

@@ -36,3 +36,22 @@ export function assertPacing(concurrency: number, minIntervalMs: number): void {
 	if (!(minIntervalMs >= 0 && minIntervalMs <= MAX_TIMER_MS))
 		throw new RangeError(`minIntervalMs が使えません: ${minIntervalMs}`);
 }
+
+/** 同時に走らせる数を n までに抑える。順番は、呼んだ順。 */
+export function createLimiter(
+	n: number
+): <T>(fn: () => Promise<T>) => Promise<T> {
+	let free = n;
+	const waiters: (() => void)[] = [];
+	return async <T>(fn: () => Promise<T>): Promise<T> => {
+		if (free > 0) free--;
+		else await new Promise<void>((resolve) => waiters.push(resolve));
+		try {
+			return await fn();
+		} finally {
+			const next = waiters.shift();
+			if (next) next();
+			else free++;
+		}
+	};
+}

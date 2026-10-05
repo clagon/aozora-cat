@@ -310,6 +310,27 @@ describe('packRun', () => {
 		expect((await readdir(out)).sort()).toEqual(['works']);
 	});
 
+	it('1つの作品に画像が多くても、同時に通信する数は、設定した数を超えない', async () => {
+		const names = Array.from({ length: 8 }, (_, i) => `1-87-${70 + i}`);
+		for (const n of names) routes.set(`/gaiji/1-87/${n}.png`, png());
+		serveWork(1, `${names.map((n) => gaijiImg('1-87', n)).join('')}<br />`);
+		await importRun([catalog(1)]);
+		let open = 0;
+		let peak = 0;
+		const slow: typeof fetch = async (url, init) => {
+			peak = Math.max(peak, ++open);
+			await new Promise((r) => setTimeout(r, 15));
+			open--;
+			return local(url, init);
+		};
+		const r = await pack({
+			concurrency: 2,
+			fetchOptions: { ...fast, fetch: slow }
+		});
+		expect(r.packed[0].images).toBe(8);
+		expect(peak).toBe(2);
+	});
+
 	it('画像が取得できない・読めない作品は、失敗として返し、ほかの作品は書く', async () => {
 		routes.set('/gaiji/1-87/1-87-71.png', '<html>not an image</html>');
 		serveWork(1, `甲${gaijiImg('1-87', '1-87-71')}<br />`);
