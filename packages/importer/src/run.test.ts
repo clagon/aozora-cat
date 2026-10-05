@@ -278,6 +278,18 @@ describe('runImport', () => {
 		expect(Date.now() - t0).toBeGreaterThanOrEqual(75);
 	});
 
+	it('パスの一部や重複になる作品IDは、何も読み書きする前に拒む', async () => {
+		for (const id of ['../../../current', '1', '00000a', '0000001', '']) {
+			await expect(run('r1', [work(1, { id })]), id).rejects.toThrow(/作品ID/);
+		}
+		await expect(run('r1', [work(1), work(1)])).rejects.toThrow(/重複/);
+		// 著作権が「あり」の作品でも、IDは検証する。
+		await expect(
+			run('r1', [work(1, { id: '../x', workCopyright: 'あり' })])
+		).rejects.toThrow(/作品ID/);
+		expect(await readdir(root)).toEqual([]);
+	});
+
 	it('同じ実行を2回終えようとしたり、使えない runId は、拒む', async () => {
 		serveXhtml(1);
 		await run('r1', [work(1)]);
@@ -384,6 +396,19 @@ describe('再開', () => {
 		await rm(file);
 		const ok = await run('r1', [...works].reverse());
 		expect(ok.complete).toBe(true);
+	});
+
+	it('取り直しの指定が違う再開は、記録を飛ばして取り直しを取りこぼさないよう、断る', async () => {
+		serveXhtml(1, '本文です。<br />', '"v1"');
+		serveXhtml(2);
+		const works = [work(1), work(2)];
+		const stop = new AbortController();
+		onHit = (_, count) => count === 1 && stop.abort();
+		await run('r1', works, { signal: stop.signal });
+		await expect(run('r1', works, { revalidate: true })).rejects.toThrow(
+			/別の入力/
+		);
+		expect((await run('r1', works)).complete).toBe(true);
 	});
 
 	it('壊れた記録は、なかったことにして、取り直す', async () => {

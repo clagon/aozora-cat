@@ -82,16 +82,24 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
 	if ((await readOptional(runPath(root, runId, 'manifest.json'))) !== null)
 		throw new Error(`実行 ${runId} は、すでに終わっています`);
 
+	// 作品IDはファイル名になる。呼び出し側が組んだ値でも、パスの一部や重複を持ち込ませない。
+	for (const w of options.works)
+		if (!/^\d{6}$/.test(w.id))
+			throw new Error(`作品IDが6桁ではありません: ${w.id}`);
+	if (new Set(options.works.map((w) => w.id)).size !== options.works.length)
+		throw new Error('作品IDが重複しています');
+
 	const byId = new Map(options.works.map((w) => [w.id, w]));
 	// 著作権が「あり」の作品は、ここへ来ても取りに行かない。
 	const targets = selectBodies(options.works).fetch;
 	const previous = await readCurrent(root);
 
-	// 実行は、始めたときの入力（目録の項目・本文の参照・変換器）に結び付ける。再開のとき、入力が
+	// 実行は、始めたときの入力（目録の項目・本文の参照・変換器）と取り直しの指定に結び付ける。再開のとき、入力が
 	// 変わっていれば、古い記録を混ぜずに止める（記録の中身が、今の入力に合うかを個別に調べない）。
 	const key = sha256(
 		JSON.stringify({
 			converter: CONVERTER_VERSION,
+			revalidate: options.revalidate === true,
 			inputs: targets
 				.map((t) => [
 					t.id,
