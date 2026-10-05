@@ -300,8 +300,11 @@ describe('runImport', () => {
 			{ minIntervalMs: Number.NaN },
 			{ minIntervalMs: -1 },
 			{ minIntervalMs: Infinity },
+			{ minIntervalMs: 2 ** 31 },
 			{ fetchOptions: { ...fast, timeoutMs: Number.NaN } },
 			{ fetchOptions: { ...fast, timeoutMs: 0 } },
+			{ fetchOptions: { ...fast, timeoutMs: 2 ** 31 } },
+			{ fetchOptions: { ...fast, retryDelayMs: 2 ** 31 } },
 			{ fetchOptions: { ...fast, retries: -1 } },
 			{ fetchOptions: { ...fast, retries: 11 } },
 			{ fetchOptions: { ...fast, retryDelayMs: Number.NaN } }

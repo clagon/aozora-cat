@@ -2,6 +2,7 @@
 // 取得の関数は差し替えられる（テストは手元のサーバーだけを相手にする）。
 
 import { parseCatalog } from './catalog.ts';
+import { MAX_TIMER_MS, sleep } from './time.ts';
 import { readZip } from './zip.ts';
 import type { ParsedCatalog } from './types.ts';
 
@@ -31,12 +32,10 @@ export type FetchOptions = {
 	fetch?: typeof fetch;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
  * 数値の設定を確かめる。NaN や負の値だと、大きさ・時間・回数の比較がすべて偽になり、
  * 上限や待ちが働かなくなる（公式サイトへ続けざまに通信するなど）ので、通信の前に断る。
- * maxBytes の Infinity は許す（呼び出し側で上限に丸める）。
+ * maxBytes の Infinity は許す（呼び出し側で上限に丸める）。時間は、タイマーの上限（約24.8日）まで。
  */
 export function assertFetchOptions(
 	o: Partial<
@@ -48,7 +47,7 @@ export function assertFetchOptions(
 	};
 	const { maxBytes, timeoutMs, retries, retryDelayMs } = o;
 	if (maxBytes !== undefined && !(maxBytes >= 0)) bad('maxBytes', maxBytes);
-	if (timeoutMs !== undefined && !(timeoutMs > 0 && Number.isFinite(timeoutMs)))
+	if (timeoutMs !== undefined && !(timeoutMs > 0 && timeoutMs <= MAX_TIMER_MS))
 		bad('timeoutMs', timeoutMs);
 	if (
 		retries !== undefined &&
@@ -57,7 +56,7 @@ export function assertFetchOptions(
 		bad('retries', retries);
 	if (
 		retryDelayMs !== undefined &&
-		!(retryDelayMs >= 0 && Number.isFinite(retryDelayMs))
+		!(retryDelayMs >= 0 && retryDelayMs <= MAX_TIMER_MS)
 	)
 		bad('retryDelayMs', retryDelayMs);
 }

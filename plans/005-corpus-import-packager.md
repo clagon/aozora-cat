@@ -150,7 +150,9 @@ Decisions made in this step (`packages/importer`, `run.ts`):
 - The body size ceiling (64 MiB) can be lowered through `fetchOptions` but not
   raised. Every numeric setting is checked before any request: `maxBytes`,
   `timeoutMs`, `retries`, `retryDelayMs`, `concurrency` (1 to 64),
-  `minIntervalMs`, and `commitRun`'s `maxFailureRatio` (0 to 1); `NaN` and
+  `minIntervalMs` (timer limits: at most 2^31-1 ms for `timeoutMs`, `retryDelayMs`
+  and `minIntervalMs`, because Node clamps longer timers to 1 ms; long waits
+  are slept in chunks), and `commitRun`'s `maxFailureRatio` (0 to 1); `NaN` and
   out-of-range values are refused, because a comparison with `NaN` is always
   false and would silently disable a limit.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
