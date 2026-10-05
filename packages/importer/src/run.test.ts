@@ -355,6 +355,35 @@ describe('runImport', () => {
 		expect(await readdir(join(root, 'runs', 'r1'))).not.toContain('lock');
 	});
 
+	it('処理が長く止まったあとも、通信を始める間隔を守り、まとめて始めない', async () => {
+		for (const n of [1, 2, 3, 4]) serveXhtml(n);
+		const starts: number[] = [];
+		const recording: typeof fetch = (url, init) => {
+			starts.push(performance.now());
+			return local(url, init);
+		};
+		// 作業者が待ちを予約したころに、イベントループを長く止める（大きな作品の同期的な変換のように）。
+		// 止まっているあいだに、予約した待ちはすべて期限が切れる。
+		const stall = setTimeout(() => {
+			const until = performance.now() + 400;
+			while (performance.now() < until);
+		}, 30);
+		await run(
+			'r1',
+			[1, 2, 3, 4].map((n) => work(n)),
+			{
+				concurrency: 4,
+				minIntervalMs: 80,
+				fetchOptions: { ...fast, fetch: recording }
+			}
+		);
+		clearTimeout(stall);
+		expect(starts).toHaveLength(4);
+		const gaps = starts.slice(1).map((t, i) => t - starts[i]);
+		// 一斉に切れた待ちから、通信は間隔をあけて1つずつ始まる。
+		for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(70);
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);

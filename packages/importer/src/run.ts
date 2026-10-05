@@ -179,11 +179,19 @@ async function execute(options: RunOptions): Promise<RunResult> {
 	let next = 0;
 	/** 作業者が1つでも予期しない失敗をしたら、残りは新しい作品を取らない。 */
 	let broken = false;
-	let gate = 0;
-	const waitTurn = async () => {
-		const at = Math.max(Date.now(), gate);
-		gate = at + minIntervalMs;
-		if (at > Date.now()) await sleep(at - Date.now());
+	// 通信を始める順番を、1つずつ並べる。待ちを先に予約する方式だと、処理が長く止まったとき、予約した
+	// 待ちが一斉に切れて、通信がまとめて始まる。順番が来たときに、前の通信の開始から間隔が空いて
+	// いるかを、その時点で確かめる。
+	let queue: Promise<void> = Promise.resolve();
+	let lastStart = -Infinity;
+	const waitTurn = (): Promise<void> => {
+		const turn = queue.then(async () => {
+			const wait = lastStart + minIntervalMs - performance.now();
+			if (wait > 0) await sleep(wait);
+			lastStart = performance.now();
+		});
+		queue = turn.catch(() => {});
+		return turn;
 	};
 
 	// 穴の空いた配列は every が飛ばすので、未完了を数え間違える。undefined で埋めておく。

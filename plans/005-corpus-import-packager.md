@@ -157,7 +157,9 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   false and would silently disable a limit.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
   interval between request starts (default 100 ms), applied to every HTTP
-  attempt including retries. An abort signal stops
+  attempt including retries. Request starts are queued one at a time and the
+  gap is checked when each one's turn comes, so a long event-loop stall cannot
+  make several reserved waits expire together and start requests in a burst. An abort signal stops
   starting new works and leaves the run resumable.
 - Rollback: `commitRun` refuses a run that is unfinished, has an unreadable or
   inconsistent manifest, has a converted work whose file is missing or does not
