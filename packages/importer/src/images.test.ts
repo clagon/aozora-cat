@@ -404,6 +404,40 @@ describe('sniffImage: 構造', () => {
 		).not.toBeNull();
 	});
 
+	it('JPEG: フレームの成分が、すべてちょうど1回ずつスキャンされていなければ読まない', () => {
+		const p = jpegParts(8, 8);
+		// 3成分（1,2,3）のフレーム。成分ごとに別のスキャン（非インターリーブ）で、各1ブロック。
+		const sof3 = [
+			0xff, 0xc0, 0, 17, 8, 0, 8, 0, 8, 3, 1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0
+		];
+		const sos = (id: number) => [0xff, 0xda, 0, 8, 1, id, 0, 0, 63, 0];
+		const data = [0x0f]; // 1ブロック（4ビット）+ 埋め
+		const make = (...scans: number[][]) =>
+			Uint8Array.from([
+				...p.soi,
+				...p.dqt,
+				...sof3,
+				...p.dht,
+				...scans.flat(),
+				...p.eoi
+			]);
+		const full = make(sos(1), data, sos(2), data, sos(3), data);
+		expect(sniffImage(full)).toEqual({
+			mime: 'image/jpeg',
+			width: 8,
+			height: 8
+		});
+		expect(sniffImage(make(sos(1), data)), '成分 2, 3 がない').toBeNull();
+		expect(
+			sniffImage(make(sos(1), data, sos(2), data)),
+			'成分 3 がない'
+		).toBeNull();
+		expect(
+			sniffImage(make(sos(1), data, sos(1), data, sos(2), data, sos(3), data)),
+			'成分 1 が2回'
+		).toBeNull();
+	});
+
 	it('JPEG: 量子化表・フレーム・スキャンの順で、EOI が最後にあれば読み、欠けた・順が違う・空・続きがある画像は読まない', () => {
 		const p = jpegParts(30, 20);
 		const make = (...parts: number[][]) => Uint8Array.from(parts.flat());
@@ -643,6 +677,13 @@ describe('ImageLoader', () => {
 			'https://www.aozora.gr.jp/gaiji/../x.png',
 			'https://www.aozora.gr.jp/cards/000879/files/../../x.png',
 			'https://www.aozora.gr.jp/gaiji/1-87/1-87-71.svg',
+			'https://www.aozora.gr.jp/gaiji/x/../../other/file.png',
+			'https://www.aozora.gr.jp/gaiji/x/./file.png',
+			'https://www.aozora.gr.jp/cards/000879/files/./x.png',
+			'https://www.aozora.gr.jp/gaiji/1-87/1-87-71.png?x=1',
+			'https://www.aozora.gr.jp/gaiji/1-87/1-87-71.png#x',
+			'https://www.aozora.gr.jp/gaiji//1-87-71.png',
+			'https://WWW.aozora.gr.jp/gaiji/1-87/1-87-71.png',
 			`${origin}/gaiji/1-87/1-87-71.png`
 		])
 			expect(await l.load(url), url).toMatchObject({

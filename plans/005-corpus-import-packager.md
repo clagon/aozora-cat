@@ -215,7 +215,9 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   downloads (`concurrency`, default 4, shared across works), so a work with many
   images cannot open many connections at once. Only
   `https://www.aozora.gr.jp/gaiji/...` and `cards/<person>/files/...` image URLs
-  are accepted. The content is checked rather than trusted (not decoded to pixels): a PNG
+  are accepted, in canonical form (a URL that parses back to itself, with no `.`
+  or `..` segment, query or fragment, since the fetch would normalize it out of
+  the allowlist). The content is checked rather than trusted (not decoded to pixels): a PNG
   must have every chunk's CRC right, no unknown critical chunk (ancillary ones,
   whose type starts with a lowercase letter, are skipped), a valid IHDR (color type, bit depth,
   interlace), its PLTE where needed, consecutive IDAT chunks, IEND last with
@@ -230,7 +232,7 @@ Step 3a (work assets and images; `packages/importer`, `src/lib/domain/asset.ts`)
   tables whose entropy data decodes completely: every Huffman code is defined,
   DC sizes and AC runs stay in range, the number of blocks matches the image
   (interleaved or not, with the restart interval's RST0 to RST7 markers in
-  order), the padding is all ones and no bytes are left over, then an EOI that
+  order), the padding is all ones and no bytes are left over, every frame component scanned exactly once, then an EOI that
   is the last two bytes. Progressive, arithmetic-coded and lossless JPEGs are
   not accepted and show up in the failure list. Sides are at most 10,000 px,
   the area at most 16 million pixels, the file 8 MiB. Header-only or truncated

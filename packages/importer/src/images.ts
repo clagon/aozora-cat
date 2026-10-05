@@ -24,6 +24,25 @@ export {
 const IMAGE_URL =
 	/^https:\/\/www\.aozora\.gr\.jp\/(?:gaiji\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_.-]+)*|cards\/\d{6}\/files\/[A-Za-z0-9_.-]+)\.(?:png|jpe?g|gif)$/;
 
+/**
+ * 取り込める画像のURLか。正規の形（解釈し直しても変わらない）で、許可した場所のものだけ。
+ * 「.」や「..」の区間は、取得する側が畳み込んで、許可の外の場所へ向かうので、通さない。
+ */
+function isImageUrl(url: string): boolean {
+	if (!IMAGE_URL.test(url)) return false;
+	try {
+		const u = new URL(url);
+		return (
+			u.href === url &&
+			u.search === '' &&
+			u.hash === '' &&
+			!u.pathname.split('/').some((seg) => seg === '.' || seg === '..')
+		);
+	} catch {
+		return false;
+	}
+}
+
 export type LoadedImage = AssetImage & { sha256: string; byteLength: number };
 export type ImageResult =
 	| { ok: true; image: LoadedImage }
@@ -139,7 +158,7 @@ export class ImageLoader {
 	}
 
 	async #fetchOne(url: string, revalidate: boolean): Promise<ImageResult> {
-		if (!IMAGE_URL.test(url))
+		if (!isImageUrl(url))
 			return {
 				ok: false,
 				code: 'invalid-url',

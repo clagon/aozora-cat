@@ -397,7 +397,7 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 		comps: Map<number, { h: number; v: number; tq: number }>;
 	} | null = null;
 	let restart = 0;
-	let scans = 0;
+	const scanned = new Set<number>(); // スキャンした成分の番号
 	let at = 2;
 	for (;;) {
 		if (at + 2 > b.length || b[at] !== 0xff) return null;
@@ -407,7 +407,10 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 			continue;
 		}
 		if (m === 0xd9) {
-			return frame !== null && scans > 0 && at + 2 === b.length
+			// すべての成分が、ちょうど1回ずつスキャンされていること（欠けた成分は、画素がない）。
+			return frame !== null &&
+				scanned.size === frame.comps.size &&
+				at + 2 === b.length
 				? { mime: 'image/jpeg', width: frame.w, height: frame.h }
 				: null;
 		}
@@ -554,7 +557,10 @@ function jpegInfo(b: Uint8Array): Sniffed | null {
 			}
 			if (p === end || !scanOk(b.subarray(end, p), frame, scan, restart))
 				return null;
-			scans++;
+			for (const sc of scan) {
+				if (scanned.has(sc.id)) return null;
+				scanned.add(sc.id);
+			}
 			at = p;
 			continue;
 		}
