@@ -76,6 +76,8 @@ export type SourceRecord = {
 	url: string;
 	/** 目録の「最終更新日」。変わっていなければ、取得し直さない。 */
 	catalogUpdated: string;
+	/** 変換器へ渡した入力（目録の項目と来歴）のハッシュ。変わっていれば、前回の作品は使えない。 */
+	inputSha256: string;
 	etag?: string;
 	lastModified?: string;
 	rawSha256: string;

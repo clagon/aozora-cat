@@ -234,6 +234,19 @@ describe('runImport', () => {
 		expect(hits).toEqual([htmlPath(1), htmlPath(1), htmlPath(1)]);
 	});
 
+	it('再試行の通信も、始める間隔を守って数える', async () => {
+		serveXhtml(1);
+		routes.get(htmlPath(1))!.fail = 2;
+		const t0 = Date.now();
+		const r = await run('r1', [work(1)], {
+			minIntervalMs: 40,
+			fetchOptions: { ...fast, retries: 2 }
+		});
+		expect(r.stats.requests).toBe(3);
+		expect(hits).toHaveLength(3);
+		expect(Date.now() - t0).toBeGreaterThanOrEqual(75);
+	});
+
 	it('復号できない本文は、その経路を使わない', async () => {
 		routes.set(htmlPath(1), { body: new Uint8Array([0xff, 0xfe, 0x82]) });
 		serveText(1);
@@ -383,21 +396,43 @@ describe('差分取得と再利用', () => {
 		expect(await manifestText('r2')).toBe(await manifestText('r1'));
 	});
 
-	it('更新日だけが進み、本文が同じなら、変換し直さず、新しい更新日を記録する', async () => {
+	it('更新日だけが進み、本文が同じなら、本文は受け取らず、来歴だけ新しい更新日で作り直す', async () => {
 		await setup();
 		const bumped = [
 			work(1, {}, '2020-02-02'),
 			work(2, { xhtml: undefined }, '2020-02-02')
 		];
 		const r = await run('r2', bumped);
-		expect(r.stats).toMatchObject({ notModified: 2 });
+		expect(r.stats).toMatchObject({ notModified: 2, fetched: 0 });
 		const m = await manifest('r2');
-		expect(
-			m.records.map((x) => x.status === 'converted' && x.source.catalogUpdated)
-		).toEqual(['2020-02-02', '2020-02-02']);
-		expect(conv(m.records[0]).workSha256).toBe(
-			conv((await manifest('r1')).records[0]).workSha256
+		expect(m.records.map((x) => conv(x).source.catalogUpdated)).toEqual([
+			'2020-02-02',
+			'2020-02-02'
+		]);
+		const json = await readFile(
+			join(root, 'runs', 'r2', 'works', '000001.json'),
+			'utf-8'
 		);
+		const parsed = readWork(json);
+		expect(parsed.ok && parsed.work.provenance.source.upstreamUpdated).toBe(
+			'2020-02-02'
+		);
+	});
+
+	it('目録の題名などが直ったら、本文と更新日が同じでも、引き継がずに作り直す', async () => {
+		await setup();
+		const fixed = [work(1, { title: '直した題名' }), works[1]];
+		for (const revalidate of [false, true]) {
+			const r = await run(revalidate ? 'r3' : 'r2', fixed, { revalidate });
+			// 作品1は検証子つきで確かめる（本文は受け取らない）。作品2は変わっていないので引き継ぐ。
+			expect(r.stats).toMatchObject({ notModified: revalidate ? 2 : 1 });
+			const json = await readFile(
+				join(root, 'runs', revalidate ? 'r3' : 'r2', 'works', '000001.json'),
+				'utf-8'
+			);
+			const parsed = readWork(json);
+			expect(parsed.ok && parsed.work.title).toBe('直した題名');
+		}
 	});
 
 	it('本文が変わったら取り込み直し、変わっていない作品は引き継ぐ', async () => {
@@ -418,7 +453,7 @@ describe('差分取得と再利用', () => {
 		await run('r1', [work(1)]);
 		await commitRun(root, 'r1');
 		hits = [];
-		const r = await run('r2', [work(1, {}, '2020-02-02')]);
+		const r = await run('r2', [work(1)], { revalidate: true });
 		expect(r.stats).toMatchObject({ fetched: 1, contentUnchanged: 1 });
 		expect(
 			await readFile(join(root, 'runs', 'r2', 'works', '000001.json'), 'utf-8')

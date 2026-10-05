@@ -26,6 +26,8 @@ export type FetchOptions = {
 	retries?: number;
 	/** 1回目の待ち時間。以降は倍にする。 */
 	retryDelayMs?: number;
+	/** 再試行を含めた、通信を始める前に毎回待つ処理。取得の間隔を守るために使う。 */
+	beforeAttempt?: () => Promise<void>;
 	fetch?: typeof fetch;
 };
 
@@ -47,6 +49,7 @@ export async function fetchResource(
 		retries = 2,
 		retryDelayMs = 1000,
 		fetch: doFetch = fetch,
+		beforeAttempt,
 		etag,
 		lastModified
 	}: FetchOptions & Validators
@@ -54,6 +57,7 @@ export async function fetchResource(
 	let last: FetchError | undefined;
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		if (attempt > 0) await sleep(retryDelayMs * 2 ** (attempt - 1));
+		await beforeAttempt?.();
 		try {
 			return await once(url, doFetch, maxBytes, timeoutMs, {
 				etag,

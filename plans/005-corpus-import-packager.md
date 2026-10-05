@@ -109,21 +109,26 @@ Decisions made in this step (`packages/importer`, `run.ts`):
   (`attempts`). A work with no usable path is recorded as `failed` and the run
   continues. Records hold no clock values, so the same inputs give the same
   records, works, and manifest bytes.
-- Reuse, in order: if the catalog update date and the converter version equal the
+- Reuse, in order: the key is a hash of every conversion input (the catalog
+  fields passed to the converter, including the update date, plus the source
+  URL), so correcting a title, a person, or a card URL in the catalog always
+  produces a new work. If that hash and the converter version equal the
   previous run's and the work file still matches its recorded hash, nothing is
   requested. Otherwise the body is requested with `If-None-Match` /
   `If-Modified-Since` from the previous record (only while the raw copy still
-  exists); a 304 reuses the raw copy, and a body whose hash equals the previous
-  one (or a changed catalog date with identical bytes) is not converted again.
-  `revalidate` forces the conditional request for every work. The official site
-  returns `ETag` and `Last-Modified` and answers 304 (checked live on 3 works).
+  exists); a 304 reuses the raw copy, and the work is converted again unless the
+  body hash, the input hash, and the converter version all match the previous
+  record. `revalidate` forces the conditional request for every work. The
+  official site returns `ETag` and `Last-Modified` and answers 304 (checked live
+  on 3 works).
 - Resume: running the same `runId` again skips works that already have a
   record, except fetch-level failures (network, timeout, status), which are
   tried again. Conversion failures are deterministic and are not retried. A
   corrupt record is treated as missing. A finished run (with a manifest) cannot
   be run again.
 - Concurrency and politeness: a bounded worker pool (default 4) and a minimum
-  interval between request starts (default 100 ms). An abort signal stops
+  interval between request starts (default 100 ms), applied to every HTTP
+  attempt including retries. An abort signal stops
   starting new works and leaves the run resumable.
 - Rollback: `commitRun` refuses a run that is unfinished, empty, or whose failure
   ratio exceeds `maxFailureRatio` (default 2%), and leaves `current.json`

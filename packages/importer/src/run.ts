@@ -180,14 +180,16 @@ async function importWork(
 				message,
 				...(location && { location })
 			});
+		// 変換器へ渡す入力。目録の項目（題名・人物・図書カードなど）が直ると変わるので、再利用の鍵にする。
+		const input = sha256(JSON.stringify(toSource(work, src)));
 		// 前回の実行で、同じ経路・同じURLから変換できていれば、それを土台にする。
 		const prev = await previousConverted(ctx, work.id, src.path, src.url);
 
-		// 目録の更新日も変換器も前回と同じなら、取得せず、前回の作品を引き継ぐ。
+		// 変換器への入力（目録の更新日を含む）も変換器も前回と同じなら、取得せず、前回の作品を引き継ぐ。
 		if (
 			prev &&
 			!ctx.revalidate &&
-			prev.record.source.catalogUpdated === src.updated &&
+			prev.record.source.inputSha256 === input &&
 			prev.record.converter.version === CONVERTER_VERSION
 		) {
 			await writeAtomic(
@@ -201,13 +203,16 @@ async function importWork(
 		const cached = prev
 			? await readRaw(root, prev.record.source.rawSha256)
 			: null;
-		await ctx.waitTurn();
-		stats.requests++;
 		let got;
 		try {
 			got = await fetchResource(src.url, {
 				maxBytes: 64 * 2 ** 20,
 				...ctx.fetchOptions,
+				// 再試行も含めて、通信を始めるたびに間隔を守り、数える。
+				beforeAttempt: async () => {
+					await ctx.waitTurn();
+					stats.requests++;
+				},
 				...(prev &&
 					cached && {
 						etag: prev.record.source.etag,
@@ -229,7 +234,11 @@ async function importWork(
 			}
 			stats.notModified++;
 			bytes = cached;
-			source = { ...prev.record.source, catalogUpdated: src.updated };
+			source = {
+				...prev.record.source,
+				catalogUpdated: src.updated,
+				inputSha256: input
+			};
 		} else {
 			stats.fetched++;
 			bytes = got.bytes;
@@ -239,6 +248,7 @@ async function importWork(
 				path: src.path,
 				url: src.url,
 				catalogUpdated: src.updated,
+				inputSha256: input,
 				...(got.etag !== undefined && { etag: got.etag }),
 				...(got.lastModified !== undefined && {
 					lastModified: got.lastModified
@@ -248,10 +258,11 @@ async function importWork(
 			};
 		}
 
-		// 本文が前回と同じで、変換器も同じなら、変換し直さない。
+		// 本文も変換への入力も前回と同じで、変換器も同じなら、変換し直さない。
 		if (
 			prev &&
 			prev.record.source.rawSha256 === source.rawSha256 &&
+			prev.record.source.inputSha256 === input &&
 			prev.record.converter.version === CONVERTER_VERSION
 		) {
 			if (got.status === 'ok') stats.contentUnchanged++;
@@ -390,10 +401,11 @@ function parseRecord(v: unknown): WorkRecord | null {
 	if (v.status !== 'converted' || !isObj(v.source) || !isObj(v.converter))
 		return null;
 	const s = v.source;
-	const [p, url, catalogUpdated, rawSha256, rawBytes] = [
+	const [p, url, catalogUpdated, inputSha256, rawSha256, rawBytes] = [
 		path(s.path),
 		str(s.url),
 		str(s.catalogUpdated),
+		str(s.inputSha256),
 		str(s.rawSha256),
 		num(s.rawBytes)
 	];
@@ -404,6 +416,7 @@ function parseRecord(v: unknown): WorkRecord | null {
 		!p ||
 		url === null ||
 		catalogUpdated === null ||
+		inputSha256 === null ||
 		rawSha256 === null ||
 		rawBytes === null ||
 		version === null ||
@@ -421,6 +434,7 @@ function parseRecord(v: unknown): WorkRecord | null {
 			path: p,
 			url,
 			catalogUpdated,
+			inputSha256,
 			...(etag !== null && { etag }),
 			...(lastModified !== null && { lastModified }),
 			rawSha256,
